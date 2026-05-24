@@ -1,0 +1,11 @@
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Local notes / scratch
+*.draft.md
+scratch/

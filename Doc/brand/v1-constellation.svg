@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  V1 "Star Map" — Constellation's master brand mark.
+
+  Design philosophy (from Zack's direction):
+   • Match the inline constellation in Doc/ui-mockup.html — an irregular 8-star pattern
+     connected by faint lines, NOT a symmetric arc/blade composition. The asymmetry is
+     intentional: real constellations are irregular, and that irregularity is what reads
+     as "constellation" rather than "logo geometry".
+   • Same color palette as Halo Ring v10a (halo_black + halo_accent #5EE08C +
+     halo_mint_bright #B8FFD4)
+   • Same atmospheric halo + rim glow background construction (visual family with R08)
+   • Thicker connecting lines than the mockup (mockup uses 0.8 at 80px ≈ 10 at 1024px;
+     this master uses 20 — substantially heavier so the constellation reads at small sizes
+     too)
+
+  Coordinate mapping from the 80px mockup → 1024 master (9× scale, centred):
+    mockup (xy)   → master (xy)            star core r → master r
+    (18, 26)      → (314, 386)              1.8        →  16
+    (32, 18)      → (440, 314)              2.6        →  23
+    (48, 28)      → (584, 404)              2.2        →  20
+    (60, 22)      → (692, 350)              1.6        →  14
+    (38, 38)      → (494, 494)              3.2        →  29  ← brightest, near-centre
+    (56, 46)      → (656, 566)              1.8        →  16
+    (30, 52)      → (422, 620)              2.0        →  18
+    (50, 58)      → (602, 674)              1.6        →  14
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Same atmosphereHalo as R08 v10a — ring-of-glow ambient backdrop -->
+    <radialGradient id="atmosphereHalo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.55" stop-color="#5EE08C" stop-opacity="0"/>
+      <stop offset="0.62" stop-color="#5EE08C" stop-opacity="0.22"/>
+      <stop offset="0.78" stop-color="#5EE08C" stop-opacity="0.07"/>
+      <stop offset="1.0"  stop-color="#5EE08C" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Subtle inner rim glow — same family as R08's rimGlow, slightly softer -->
+    <radialGradient id="rimGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0.78" stop-color="#5EE08C" stop-opacity="0"/>
+      <stop offset="0.84" stop-color="#5EE08C" stop-opacity="0.16"/>
+      <stop offset="0.93" stop-color="#5EE08C" stop-opacity="0.04"/>
+      <stop offset="1.0"  stop-color="#5EE08C" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Star bright-head halo — bright mint core fading into accent green then transparent -->
+    <radialGradient id="starHalo" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0"    stop-color="#B8FFD4" stop-opacity="0.85"/>
+      <stop offset="0.20" stop-color="#B8FFD4" stop-opacity="0.40"/>
+      <stop offset="0.50" stop-color="#5EE08C" stop-opacity="0.12"/>
+      <stop offset="1.0"  stop-color="#5EE08C" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#000000"/>
+
+  <!-- Atmospheric ring of green (same family as R08) -->
+  <circle cx="512" cy="512" r="500" fill="url(#atmosphereHalo)"/>
+  <circle cx="512" cy="512" r="380" fill="url(#rimGlow)"/>
+
+  <!-- Faint connection lines — drawn before stars so star bright cores sit on top.
+       Stroke-width 20 (vs mockup's 0.8 at 80px → ~10 at 1024); deliberately heavier
+       so the constellation outline reads clearly at any size. -->
+  <g stroke="#5EE08C" stroke-opacity="0.42" stroke-width="20"
+     fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Topology preserved exactly from Doc/ui-mockup.html inline mark -->
+    <path d="M 314 386 L 440 314 L 584 404 L 692 350"/>
+    <path d="M 440 314 L 494 494"/>
+    <path d="M 584 404 L 494 494 L 422 620 L 602 674"/>
+    <path d="M 494 494 L 656 566"/>
+  </g>
+
+  <!-- Soft halos behind each star (subtle — keeps the irregular constellation reading,
+       not a "logo geometry" reading). Halo radius ≈ 2.4× the star core radius. -->
+  <g>
+    <circle cx="314" cy="386" r="40" fill="url(#starHalo)"/>
+    <circle cx="440" cy="314" r="56" fill="url(#starHalo)"/>
+    <circle cx="584" cy="404" r="48" fill="url(#starHalo)"/>
+    <circle cx="692" cy="350" r="36" fill="url(#starHalo)"/>
+    <circle cx="494" cy="494" r="72" fill="url(#starHalo)"/>
+    <circle cx="656" cy="566" r="40" fill="url(#starHalo)"/>
+    <circle cx="422" cy="620" r="44" fill="url(#starHalo)"/>
+    <circle cx="602" cy="674" r="36" fill="url(#starHalo)"/>
+  </g>
+
+  <!-- Star bright cores — solid mint-bright (#B8FFD4), as in the mockup -->
+  <g fill="#B8FFD4">
+    <circle cx="314" cy="386" r="16"/>
+    <circle cx="440" cy="314" r="23"/>
+    <circle cx="584" cy="404" r="20"/>
+    <circle cx="692" cy="350" r="14"/>
+    <circle cx="494" cy="494" r="29"/>
+    <circle cx="656" cy="566" r="16"/>
+    <circle cx="422" cy="620" r="18"/>
+    <circle cx="602" cy="674" r="14"/>
+  </g>
+</svg>
