@@ -311,54 +311,87 @@ each gets a preview row in the card → SEND fires them all.
 
 ---
 
-## 5. Brief template
+## 5. Brief template (v2 — info-dense, partial-OK, bounded)
 
-What Cortex sends to CC:
+v1 brief failed the Kao test: CC hit the 25K-token-per-file limit reading a
+big session.jsonl, didn't know it was allowed to give up gracefully, and
+wrapped with prose instead of emitting `actions[]`. v2 fixes the framing.
+
+### Design principles (same rigor as v0.5 Router selector)
+
+1. **Critical info at head + tail.** Anthropic models attend most strongly to
+   the start and end of long contexts. So: ASK first; OUTPUT CONTRACT in the
+   first ~300 tokens; CONSTRAINTS at the end. Reference material in the
+   middle.
+2. **Don't teach CC its own tools.** No "use osascript like this" or "the
+   shell has grep". CC's harness already documents this. Lecturing adds tokens
+   without adding signal.
+3. **Explicit partial-OK path.** Tell CC: when research hits a wall (file too
+   big, data missing, budget tight), STILL emit `actions[]` based on what's
+   known + a `notes:` field explaining the gap. The default "I'll try harder"
+   loop is what bricks long tasks.
+4. **Soft budget hint.** "≤8 tool calls ideal, then commit." Not a hard cap,
+   but it shapes CC away from rabbit holes.
+5. **Twin selector still applies.** v0.5's selector picks 1-3 paths to
+   *inline* into the brief — same as before, but now consumed by CC, not
+   v0.5 Router. Everything else stays at `--add-dir` for on-demand reads.
+6. **Single-line, prominent mid-flight contract.** CC needs to know that
+   a new "user" message in its stream = real-time Zack correction, not the
+   typical conversation continuation it's used to.
+
+### v2 brief layout
 
 ```
-You are operating as Zack's hands-free agent. He just said:
+ASK
+"<Zack's words, verbatim>"
+NOW: <iso + tz>            PHOTO: <yes|no>
 
-  "<event.text>"
+OUTPUT (the only thing your final message must contain — raw JSON, no fence)
+<inline minified JSON schema — actions[] shape from §4>
 
-NOW: <iso timestamp + tz>
-PHOTO: <attached/none>
+If you cannot fully complete the research (e.g., file too large, info
+missing, time running out), STILL emit actions[] based on what you DO
+know, and use `notes:` to explain the gap. Empty actions[] is acceptable
+ONLY for asks that are genuinely unsupported (e.g., a Mac-local action
+when there's no plausible candidate); in that case put the reason in
+`notes:`.
 
-YOUR JOB
-Do whatever research / reading / composition this requires, using osascript,
-shell, file ops, and your existing tools. When ALL info is in hand, emit the
-JSON described below.
+APPROACH
+1. Plan in 1-2 sentences (your "thinking" block — won't be shown to Zack).
+2. Execute ≤8 tool calls ideally; commit and emit when you have enough.
+3. Emit the final JSON.
 
-CONTEXT (inline; you don't need to re-read these)
-  === identity.md ===                # only if selector picked it
-  <content>
-  === skills/email-style.md ===     # selector-picked
-  <content>
-  === people/core/<x>.md ===        # selector-picked
-  <content>
+CONSTRAINTS
+- Do not execute side effects (no osascript that SENDS mail / ADDS reminder
+  / ADDS calendar / SENDS imessage; no fs.write outside /tmp/).
+  Cortex runs the preview gate on your JSON and dispatches after Zack
+  confirms. You PROPOSE only.
+- Read ops on Mail/Reminders/Calendar/Messages are fine.
+- If a new "user" message appears in your conversation while you're working,
+  it is Zack correcting you in real time (mic always-on). Integrate the
+  correction immediately; don't ask him to repeat.
 
-ALSO available to read on demand:
-  ~/constellation/twin/             # whole twin via --add-dir
-  ~/Code/Projects/                  # via --add-dir
-  ~/.claude/projects/               # via --add-dir
-  Mail.app, Reminders.app, Calendar.app, Messages.app, Notes.app, Shortcuts.app
-  (via `osascript -e 'tell application ... to ...'`)
+CONTEXT (selector-picked, inlined; don't re-read)
+=== identity.md ===
+<content>
+=== skills/<picked>.md ===
+<content>
+=== people/core/<picked>.md ===
+<content>
 
-OUTPUT SCHEMA (you'll be validated against this)
-<inline JSON schema for the picked output shape>
-
-CORRECTION
-If at any point a new user message appears in your stream from "user", that
-is Zack speaking to you in real time. Adjust course; don't ask him to repeat.
-
-DO NOT execute side-effecting actions (osascript Mail send, Reminders add,
-calendar add, fs write outside /tmp, imessage send) yourself. Cortex's HITL
-gate runs on the JSON you return. Your job is to PROPOSE the actions, not
-to do them.
+ALSO ACCESSIBLE (via --add-dir; pull only if needed)
+- ~/constellation/twin/      # full Twin (other skills, people, commitments)
+- ~/Code/Projects/           # Zack's repos
+- ~/.claude/projects/        # past CC sessions
 ```
 
-That last paragraph is critical. CC has the *capability* to send the email
-itself; we tell it not to. The structured output is the contract that
-keeps the preview gate intact.
+The schema is referenced TWICE — once explicitly as the output contract
+(at the head), and the schema dict itself is what gets validated. Repetition
+of "this is what you must output" is high-leverage; it costs ~150 tokens and
+materially raises compliance.
+
+The "partial-OK" clause is the single biggest fix vs v1 — it changes CC's
+failure mode from "silent prose" to "honest partial actions[]".
 
 ---
 
