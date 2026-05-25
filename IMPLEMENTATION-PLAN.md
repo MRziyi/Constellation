@@ -27,9 +27,9 @@ Each phase has: scope, deliverables, dependencies, success criteria, deferred it
 | 2 — Mac UC1 + Slice A/B/C | ✓ done | 12 adapters; UC1 wall-clock 5/5 PASS mean 3.9s; confirm-policies enforced |
 | 2.5 — R-3 multi-step | ✓ done | (deprecated by Phase 5 v2 — CC owns multi-step now) |
 | 3a — Web Console | ✓ done 2026-05-25 | https://edge.example.com/; cookie auth; 9 routes; full workflow test PASS |
-| **5 (v2 pivot)** — CC-as-agent + streaming progress + mid-flight correction | **✅ infra landed; P0 last-mile** | per [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md). Streaming agent action, progress frames, classifier, actions[] preview + executor SEND, brief v2 — all in place. `actions_e2e.py` PASS. Kao-style test partial: [TODO P0.1/P0.2](TODO.md) blocking. |
-| **5c** — Router → tiny classifier (haiku) | ⏸ NEXT | wire complex asks to agent path through user_invoke; see TODO P1.1 |
-| **5g** — retire v0.5 multi-step Router + obsolete adapters | ⏸ after 5c | TODO P1.2 |
+| **5 (v2 pivot)** — CC-as-agent + streaming + multi-phase checkpoints | **✅ landed 2026-05-25** | per [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md). Streaming agent (TUI tmux + jsonl tail, $0 marginal cost), glanceable progress + thinking heartbeat, v2.6 brief (YOU MUST + self-check + phase pattern), actions[] preview + executor SEND, **multi-phase checkpoint pattern** (CC emits {phase_done, next} → Cortex blocking ⏸ card → user Continue/Adjust/Cancel → `agent_continue` resumes CC in same tmux). Verified e2e: `actions_e2e.py` PASS, `multi_phase_e2e.py` PASS (1 checkpoint + 1 final, 28s, 11 progress events). |
+| **5c** — Router → tiny haiku classifier | ⏸ NEXT | so `user_invoke` automatically routes simple vs complex without dev endpoint POST |
+| **5g** — retire obsolete adapters from AVAILABLE_TOOLS | ⏸ after 5c | code stays in tool_agent (regression safety); prune Router's catalog |
 | 3b — Android-native client | ⏸ | deferred until P0/P1 stabilise; inherits Phase 5 protocol shape |
 | 4 — Rokid Glass deploy | ⏸ | post-3b |
 | 6 — UC3 face | ⏸ | parallelisable |

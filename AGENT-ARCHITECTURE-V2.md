@@ -311,6 +311,102 @@ each gets a preview row in the card → SEND fires them all.
 
 ---
 
+## 5b. Multi-phase checkpoint pattern (v2.6, ★ added 2026-05-25)
+
+Per Zack 2026-05-25: "more blocking checkpoints in the flow". Mid-flight
+correction via send_keys is unreliable when CC is in extended thinking;
+but **phase boundaries are reliable** because CC has explicitly ended its
+turn and is waiting for input.
+
+So instead of running straight from invoke → final actions[], CC can break
+multi-phase tasks into stages and PAUSE between them. Each pause surfaces
+to the HUD as a blocking preview card; user replies via the composer
+(Continue / Adjust+text / Cancel) and Cortex resumes CC.
+
+### When CC checkpoints
+
+The brief (`cortex.agent_brief.build_agent_brief`) tells CC:
+
+> If your work has 2+ distinct phases (e.g. "check emails THEN find dir
+> THEN draft reply"), CHECKPOINT between phases instead of running straight
+> through. This lets Zack confirm or redirect before each phase — critical
+> for sensitive operations or when a wrong keyword could send research the
+> wrong direction.
+
+Schema for a checkpoint output (vs final):
+
+```json
+{
+  "phase_done": true,
+  "summary":    "Read latest Kao email — project is PhotoRing",  // HUD title
+  "found":      "Latest email from Kao asks PhotoRing progress…", // body context
+  "next":       "On confirm: propose fs_write reply + reminder",
+  "actions":    []
+}
+```
+
+vs final (no more phases):
+
+```json
+{
+  "actions": [{...}, {...}],
+  "summary": "PhotoRing reply + reminder",
+  "notes":   "Optional caveats"
+}
+```
+
+Cortex's `_is_checkpoint(structured)` returns True iff `phase_done` is
+truthy AND `next` is non-empty.
+
+### Flow
+
+```
+user_invoke
+  → http _send_agent_card → claude_code.agent (TUI in tmux, --session-id <uuid>)
+      → CC runs Phase 1
+      → emits {phase_done:true, next:"…"} + end_turn
+  → adapter sees checkpoint output: KEEP tmux alive, return is_checkpoint=true
+  → Cortex builds ⏸ "Phase pause" card with [Continue/Adjust/Cancel]
+      → user taps Continue
+  → Cortex._resume_agent_phase → claude_code.agent_continue(tmux_session, "continue")
+      → adapter paste-buffers "continue" into existing tmux, tails new jsonl from
+        previous EOF, returns next output
+      → if checkpoint: another ⏸ card; if final: ✦ actions[] preview
+  → Cortex._send_agent_card_for_decision builds the next card
+  → user taps Send all → existing _execute_remaining path fires executors
+```
+
+### Why the phase send_keys works (vs mid-thinking)
+
+At a checkpoint, CC has explicitly ended its turn — the TUI is parked at
+its input prompt waiting for a user message. `tmux paste-buffer` + Enter
+reliably submits that message and CC processes it on its next turn.
+
+(Contrast: mid-thinking send_keys often gets swallowed because CC's TUI
+is busy rendering thinking deltas / tool output and doesn't have a stable
+input cursor. The Phase 5b/5d "best-effort mid-flight correction" is kept
+for the rare case where CC's between-tool window catches it; the phase
+checkpoint is the GUARANTEED correction surface.)
+
+### Cancel
+
+User taps Cancel on a checkpoint card → Cortex dispatches
+`claude_code.agent_kill` which `tmux kill-session`s the paused agent. The
+CC session.jsonl on disk persists; user can `claude --resume <uuid>` later
+if they want.
+
+### Verified e2e (2026-05-25)
+
+`/private/tmp/multi_phase_e2e.py` PASSES through edge.example.com:
+  - 2-phase Kao brief
+  - Phase 1: read inbox, identify PhotoRing → ⏸ card
+  - "Continue" → CC resumes within ~7s
+  - Phase 2: final actions card with fs_write + reminder, 28s total
+  - 11 progress events, glance-friendly throughout
+  - 1 checkpoint + 1 final command card
+
+---
+
 ## 5. Brief template (v2 — info-dense, partial-OK, bounded)
 
 v1 brief failed the Kao test: CC hit the 25K-token-per-file limit reading a
