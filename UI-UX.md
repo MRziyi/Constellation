@@ -136,6 +136,70 @@ For simple intents that aren't multi-step, the old "preview → FEEDBACK → rev
 
 **Image is not re-captured** across iterations (reuses original `user_invoke` image).
 
+### 3.8 Streaming agent path (v0.4 per SoT R-4 / C-25 / C-26 / C-27)
+
+When the classifier routes an ask to the agent path, the HUD experience adds three new states between "invoke" and "preview":
+
+#### A. Glanceable progress ticker (non-blocking, C-25/C-26)
+
+The user sees **a colored row appear every 2–3 seconds**, each one a single line:
+
+| Icon | Kind | Example label |
+|---|---|---|
+| 🔧 | tool | "running osascript reminders add" |
+| 📖 | read | "reading kao-2026-04-18.md" |
+| ✍️ | write | "drafting reply (412 chars)" |
+| 💭 | thinking | "thinking… (8s quiet)" — **heartbeat**, see below |
+| ⏸ | paused | "phase 1 done — awaiting decision" |
+| ▶️ | resuming | "continuing after your input" |
+| 🎯 | plan | "plan: 3 steps" |
+| ✗ | error | "shortcut failed: <reason>" |
+| 👂 | listening | "feedback open" (mic indicator) |
+| 💬 | user-said | "你听到的话: '改成下周一'" (echo of injected feedback) |
+
+Rows accumulate top-to-bottom as a timeline. **Each label is ≤80 characters** so a single glance suffices. No row blocks — the user can keep talking, walking, watching whatever they were watching.
+
+#### B. Thinking heartbeat (C-25)
+
+Opus 4.7 with extended thinking can sit silent for 10–30s while it reasons. Cortex emits a synthetic 💭 row every **8 seconds of jsonl silence** so the HUD never looks dead:
+
+```
+💭 still thinking… (8s quiet)
+💭 still thinking… (16s quiet)
+💭 still thinking… (24s quiet)
+🔧 running osascript mail send  ← real activity resumed
+```
+
+The interval is intentionally human-noticeable but not anxiety-inducing.
+
+#### C. Phase-checkpoint card (⏸ blocking, C-27)
+
+When CC emits `{phase_done: true, summary, next, actions?: [...]}` the HUD shifts from ticker mode to a **blocking checkpoint card**:
+
+```
+┌─────────────────────────────────────────────┐
+│ ⏸ Phase 1 done                              │
+│                                             │
+│ Read 3 emails with Kao; latest meeting       │
+│ ask is for 2026-04-25 14:00.                │
+│                                             │
+│ Next: draft a reply confirming + add        │
+│ reminder 1h before.                         │
+│                                             │
+│  [Continue]   [Adjust]   [Cancel]           │
+└─────────────────────────────────────────────┘
+```
+
+- **Continue** (ring-tap default) → Cortex dispatches `agent_continue` with literal "continue".
+- **Adjust** → mic opens (per C-22) for free-form correction; user's words go in as `agent_continue("Adjust: <text>")`.
+- **Cancel** → Cortex dispatches `agent_kill` and writes a partial receipt.
+
+A complex task can have multiple checkpoints; they each look the same. The blocking is **reliable** (CC really has paused, end_turn already fired) — distinct from progress_feedback mid-thinking which is best-effort.
+
+#### D. Final preview (executor-mapped actions[])
+
+When CC emits actions without `phase_done`, Cortex builds the standard `preview_action` multi-row card (one row per action). SEND iterates the executor adapters as in v0.5. Phase 5g's pruned catalog is the executor side of this.
+
 ---
 
 ## 4. App 设置页 (只 5 个 frame)

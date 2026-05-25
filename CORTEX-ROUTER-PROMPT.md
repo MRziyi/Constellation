@@ -1,9 +1,17 @@
 # Cortex Router — GPT Prompt Design
 
-**Version**: v0.4
-**Status**: 实现同步 — router.py SYSTEM_PROMPT 是 ground truth；本文档跟它对齐. **gpt-5.2 default + v0.4 density pass (~30% shorter system prompt, tools block, user prompt; same coverage) + diskcache via [llm_cache.py](cortex/cortex/llm_cache.py)**
-**关联文档**: [DESIGN.md](DESIGN.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [DATA-MODEL.md](DATA-MODEL.md) · [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md)
-**Last updated**: 2026-05-24
+**Version**: v0.4 (frozen 2026-05-24); **Router role narrowed by [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md) §6 as of 2026-05-25**
+**Status**: 实现同步 — router.py SYSTEM_PROMPT 是 ground truth；本文档跟它对齐. **gpt-5.2 default + v0.4 density pass + Phase 5g catalog prune (50+ actions → 11) + diskcache via [llm_cache.py](cortex/cortex/llm_cache.py)**
+**关联文档**: [DESIGN.md](DESIGN.md) · **[AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md)** · [PROMPT-DESIGN-V2.md](PROMPT-DESIGN-V2.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [DATA-MODEL.md](DATA-MODEL.md) · [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md)
+**Last updated**: 2026-05-25 (added V2 supersedes banner)
+
+> ⚠ **Reader pointer (2026-05-25)**: After Phase 5 v2 + Phase 5c + Phase 5g:
+> - **A new classifier runs ahead of the Router** ([`cortex/cortex/classifier.py`](../../Code/Projects/Constellation-Server/cortex/cortex/classifier.py)). One sub-second JSON call: `{complex: bool, why: str}`. `complex=true` → bypass Router entirely → `claude_code.agent` dispatch with brief from `cortex.agent_brief`. `complex=false` → existing v0.5 selector + Router planner path.
+> - **Router's job shrank to bounded single-call asks**. Catalog pruned from 11 tools / 50+ actions to **10 tools / 11 actions** (reminders.add, calendar.add_event/list_today, mail.send, fs.write, system_status.get, safari_state.current_tab, apple_shortcuts.run, imessage.send, echo, claude_code.agent). All composition / search / multi-step lives in the agent path now.
+> - **R-3 multi-step is deprecated** — `task_continues` machinery still exists in code for backward compat but the catalog can't really express asks that need it anymore. Multi-step happens in the agent path via the **multi-phase checkpoint pattern** ([V2 §5b](AGENT-ARCHITECTURE-V2.md)).
+> - **`result_format=draft`** is legacy. The SYSTEM_PROMPT no longer teaches it; the validator still permits it for backward compat.
+>
+> The §1 SYSTEM_PROMPT below + §2 user prompt template are still the right shape for what the Router does NOW (single-round bounded dispatch). The "MULTI-STEP" and "FREE-FORM FEEDBACK" sub-blocks describe machinery that's vestigial under V2. Treat them as historical.
 
 Cortex Router 是 Cortex Agent 的"决策核心"——每个 event 进 Event Bus 后，Router 调 GPT API 输出 **dispatch plan** (JSON)，Cortex 据此发 RPC 到 Tool Agent，最终结果渲染到 Glass HUD。
 

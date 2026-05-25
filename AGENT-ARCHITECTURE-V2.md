@@ -491,56 +491,78 @@ failure mode from "silent prose" to "honest partial actions[]".
 
 ---
 
-## 6. Classifier — Cortex's only remaining LLM call
+## 6. Classifier — Cortex's only LLM call ahead of the planner
 
-A tiny gpt-haiku call (was gpt-5.2 router):
+**Landed 2026-05-25** as [`cortex/cortex/classifier.py`](../../Code/Projects/Constellation-Server/cortex/cortex/classifier.py). Simpler than the original design: one bit + a 15-word reason.
 
 ```
 SYSTEM:
-You are Cortex's intent classifier. Output JSON: {kind, schema}.
+You're Cortex's intent classifier. Route Zack's ask to either the
+research-agent path (Claude Code in tmux) or the direct-adapter path.
 
-kind ∈ {
-  "fast_query",        # state lookup (battery, focus, time, frontmost app)
-  "simple_action",     # one explicit side effect with all details given
-  "complex"            # anything requiring reading, searching, composing,
-                       # reasoning across data, OR multiple side effects
-}
+Output JSON ONLY: {"complex": true|false, "why": "≤15 words"}
 
-schema (only if kind="complex") ∈ {"actions", "single_email", "single_reminder", ...}
-                       # determines what CC's --json-schema enforces
+complex = true  WHEN the ask needs ANY of:
+  - reading/finding/searching multiple sources (emails, files, sessions, web)
+  - composition / drafting / summarising
+  - multiple side-effect actions in one ask
+  - keywords: find / look at / search / summarise / draft / check / 看 / 找 / 起草
+
+complex = false WHEN it's a SINGLE explicit step:
+  - bounded reminder: "remind me to X at 3pm" (title + time both given)
+  - bounded calendar: "add a 4pm meeting with Y tomorrow"
+  - bounded message: "send 'on my way' to Mike" (recipient + content both given)
+  - pure state query: "battery?", "what time?", "focus mode?", "current tab?"
+  - bounded file write: "write 'X' to /tmp/y.txt"
+
+When ambiguous, prefer complex=true — the agent path can degrade to a single
+action; the direct path can't escalate to research.
 
 USER:
 Ask: "<event.text>"
-
-Examples:
-  "battery?" → {kind: "fast_query"}
-  "remind me to drink water at 3pm" → {kind: "simple_action"}
-  "send 'on my way' to Mike" → {kind: "simple_action"}
-  "find emails from Kao about project and reply" → {kind: "complex", schema: "actions"}
-  "look at my last CC session and summarize" → {kind: "complex", schema: "actions"}
 ```
 
-~300 token call, sub-second latency on haiku. Cheap enough to be on every
-invoke.
+**Why one bit, not three classes**:
+- A separate `fast_query` bucket would route to the same `system_status.get`
+  /`safari_state.current_tab`/`applescript_calendar.list_today` adapters that
+  `simple_action` would. The planner already picks the right tool from the
+  pruned catalog — the classifier doesn't need to pre-select.
+- A `schema` field would constrain CC's structured output, but CC's brief
+  already pins the schema (`actions[]` + optional `phase_done`/`next`). One
+  fewer decision means less classifier surface to drift.
+
+**Model** — currently `gpt-5.2` (Cortex already has an OpenAI key). Swap to
+a haiku alias via `CORTEX_CLASSIFIER_MODEL=claude-haiku-…` once an Anthropic
+API key is plumbed (haiku ≈ $0.0001/call + sub-second; gpt-5.2 ≈ $0.001/call).
+
+**Defensive failure mode** — any error (parse / API / network) returns
+`complex=True`. Agent path handles simple asks too (slower); direct path can't
+escalate. Fail-closed to capability.
+
+**Verified e2e 2026-05-25**:
+- `"battery?"` → complex=false, latency 1.5s → v0.5 simple path → preview_action
+- `"look at my last Kao email and propose a reply"` → complex=true, latency 1.3s → agent dispatch + tmux session live
 
 ---
 
 ## 7. Migration phases
 
-| Phase | Scope | Effort |
+| Phase | Scope | Status |
 |---|---|---|
-| **5a** | New `claude_code.agent` action in Tool Agent with stream-json subscription + distillation | 1d |
-| **5b** | Glass protocol: add `progress` frame; Cortex forwards distilled events; web HUD renders progress timeline | 0.5d |
-| **5c** | Cortex Router rewrite as classifier; pluck the "complex" path through new agent action; KEEP simple/query path through existing adapters | 0.5d |
-| **5d** | Mid-flight correction wire-up (user voice → CC stdin) | 0.5d |
-| **5e** | Output schema enforcement + preview card rendering from `actions[]` array | 0.5d |
-| **5f** | E2E test on Kao-style example WITH a planted mid-flight correction; measure: latency-to-first-progress, total wall-clock, correction-honoured, structured-output-valid | 0.5d |
-| **5g** | Doc + commit + retire dead Router code | 0.5d |
+| **5a** | New `claude_code.agent` action in Tool Agent with stream-json subscription + distillation | ✅ done 2026-05-25 |
+| **5b** | Glass protocol: `agent_progress`/`progress_feedback` event handlers + filler/substantive classifier + HUD progress ticker render | ✅ done 2026-05-25 |
+| **5c** | Auto-routing classifier (one LLM call ahead of planner; `complex=true` → shared `_dispatch_complex_agent`) | ✅ done 2026-05-25 |
+| **5d** | Mid-flight correction wire-up | ⤳ **mitigated by 5f** — multi-phase checkpoint pattern provides reliable phase-boundary correction; free-form mid-thinking send_keys remains best-effort |
+| **5e** | Output schema enforcement (`actions[]` array) + executor mapper + multi-row preview card + SEND iterates | ✅ done 2026-05-25 |
+| **5f** | Multi-phase checkpoint pattern (`phase_done`/`next` → ⏸ blocking card → `agent_continue` resumes same tmux) | ✅ done 2026-05-25 — see §5b; verified `multi_phase_e2e.py` (1 checkpoint + 1 final, 28s, 11 progress events) |
+| **5g** | Prune `AVAILABLE_TOOLS` catalog to executor + bounded-state-query set (10 tools, 11 actions); keep adapter code for regression safety | ✅ done 2026-05-25 |
 
-Total: ~4 days focused work.
+**All Phase 5 sub-phases landed.** Implementation lives across two repos:
+- `Constellation-Server`: cortex/{classifier,server,router,http,agent_brief}.py +
+  tool-agent/tool_agent/adapters/claude_code.py
+- `Constellation-Console`: web/edge HUD progress ticker + preview card rendering
 
-This turn we do: **5a + partial 5b** (the streaming + distillation
-prototype with a smoke test). Subsequent turns finish the rest.
+What's next: see [HANDOFF.md §4](HANDOFF.md) + [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md) for forward-looking items.
 
 ---
 

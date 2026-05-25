@@ -1,9 +1,33 @@
 # Constellation Tool Adapters — Action Catalog
 
-**Version**: v0.2
-**Status**: 设计阶段 → 实现同步 (Phase 2 Slice A/B/C 完成 12 个 adapter live)
-**关联文档**: [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md)
-**Last updated**: 2026-05-24
+**Version**: v0.2 (frozen 2026-05-24); **planner-visible subset narrowed by Phase 5g as of 2026-05-25**
+**Status**: 设计阶段 → 实现同步 (Phase 2 Slice A/B/C 完成 12 个 adapter live; Phase 5g planner catalog pruned to 10 tools / 11 actions)
+**关联文档**: **[AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md)** · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md)
+**Last updated**: 2026-05-25 (added Phase 5g supersedes banner)
+
+> ⚠ **Reader pointer (2026-05-25)**: This doc catalogs all **12 adapter implementations** that live in `tool-agent/tool_agent/adapters/`. After Phase 5g, only a **pruned subset** is visible to the planner ([`cortex.router.AVAILABLE_TOOLS`](../../Code/Projects/Constellation-Server/cortex/cortex/router.py)). The full adapter set is still loaded — used by:
+> 1. The **agent path** (Claude Code in tmux gets `--add-dir` access to Twin/projects and uses its own native tools — Bash, Read, etc. — for research; on completion the structured `actions[]` is mapped back to executor adapters by `cortex.server._action_to_subtask`).
+> 2. Direct `/api/dev/dispatch` calls (dev/test bypass).
+> 3. Regression safety — adapter code paths are still tested end-to-end.
+>
+> **Planner-visible 10 tools / 11 actions** (the only entries the v0.5 Router can NAME in a dispatch plan):
+>
+> | Tool | Actions visible |
+> |---|---|
+> | `echo` | echo |
+> | `applescript_reminders` | add |
+> | `applescript_calendar` | add_event, list_today |
+> | `applescript_mail` | send |
+> | `fs` | write |
+> | `system_status` | get |
+> | `safari_state` | current_tab |
+> | `apple_shortcuts` | run |
+> | `imessage` | send |
+> | `claude_code` | agent (orchestration uses `agent_continue` / `agent_kill` directly, not via planner) |
+>
+> Adapters **hidden from the planner but kept in tool_agent**: full `applescript_mail` (read_current/list_inbox/find_messages/draft/get_thread), full `applescript_calendar` (list_range/find_conflict/get_event), full `fs` (read/append/grep/list/delete), full `apple_notes` (create/list/read/append/search), full `applescript_reminders` (list/complete/delete), full `apple_shortcuts` (list), full `imessage` (list_recent), full `safari_state` (all_tabs/recent_history), full `twin_query` (ask), full `claude_code` Track A (draft/run/continue_/list_sessions) + Track B (run_interactive/get_pane/send_keys/kill/list_tmux/start_watcher/stop_watcher). All still callable by the agent path's actions[] → executor mapper or by `/api/dev/dispatch`.
+>
+> §-by-§ adapter specs below remain accurate as **implementation** docs. The "Cortex Router will pick this" framing is what changed.
 
 Reference catalog of every Tool Agent adapter — its actions, args, return shapes, side-effects level. Cortex Router uses this catalog (via system prompt) to compose dispatch plans; Tool Agent implements one adapter class per entry.
 

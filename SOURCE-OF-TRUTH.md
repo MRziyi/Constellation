@@ -443,3 +443,60 @@ Phase 2 收尾后 Zack 给出两个典型用例并 explicitly 说"还有很多�
 - **OQ-R3-3**: 用户说"撤销刚才那步"——v1 不支持 undo；接受。
 
 ---
+
+## Revision-4: 2026-05-25: 架构转向 — CC-as-agent + visible-process invariant + multi-phase checkpoint
+
+### 触发
+
+Phase 2/3a 收尾后 Zack 在 v0.5 multi-step + 12-adapter 路径上做了几次复杂意图（Kao 邮件场景），观察到两个体感问题，原话：
+
+> "我感觉越设计越复杂了… 是否真的需要自己从零搓一堆工具调用… 能不能直接甩给 CC… 不要被现有不合理设计所限制的视野…"
+>
+> "我能看到过程而不是直接看到结果。要是让我等三十多秒才看到结果，我会很不安。中间路径上的通知要有非常细粒度的设计。"
+
+进一步在执行细节上 Zack 给出了三条强约束（原话）：
+
+> "你还是要用我现在的 opus 4.7 的模型。你要调整，深入考虑这 prompt 怎么设计来避免这些问题。"
+> "我每隔几秒我就能看到它在运作，它在干嘛。"
+> "敏感操作，或者它要进行某些下一步… 多加一些中途的这种汇报或者控制的节点，作为一种阻塞式的行为。"
+
+这是 framework 级的转向，必须 SoT 锁定。
+
+### 新约束（追加到 [§8](#8-locked-constraints必须遵守的硬约束清单)）
+
+| 编号 | 约束 | 用户原话依据 |
+|---|---|---|
+| **C-24** | **复杂任务的 agent runtime 用 Claude Code in TUI tmux，不是手搓多步 Router**。CC 拥有 shell + Read + Bash + WebSearch + Twin add_dir + 推理；Cortex 不再"模仿" agent，只做 classifier + HITL + 进度中继 + checkpoint orchestrator。CC 跑 TUI（用 Pro/Max 订阅配额）而非 `claude -p`（按 API 计费）。 | "能不能直接甩给 CC…" + 选择保留 Opus 4.7 而非降级到 Sonnet |
+| **C-25** | **Visible process is a hard invariant**（升级至 C-9/C-10 同级）。用户每 2-3 秒必须看到 agent 在干什么——执行了哪个 tool、读了哪个文件、在想什么。30 秒 "thinking…" 不可接受。当 Opus 处于 extended thinking 不写盘时，Cortex 必须 emit "💭 still thinking… (Ns quiet)" 心跳，每 8s 一次。 | "我每隔几秒我就能看到它在运作，它在干嘛" + "如果我看到它一直在 thinking 我会很不安" |
+| **C-26** | **HUD 进度必须 glanceable**（眼镜在眼前，扫一眼就知道在干嘛）。每条进度事件 distill 到 emoji + ≤80 字符标签（🔧 工具执行 / 📖 read / ✍️ write / 💭 thinking / ⏸ paused / ▶️ resuming / 🎯 plan / ✗ error / 👂 listening / 💬 user-said），HUD 渲染成有色 ticker。不是日志、不是诊断流。 | "HUD 上的信息要 glanceable" + "更密集但更可读" |
+| **C-27** | **重要 / 敏感 / 多阶段任务必须支持 phase-boundary blocking checkpoints**——CC 在 phase 之间显式 yield（emit `{phase_done:true, summary, next, actions[]}` + `stop_reason=end_turn`），Cortex 弹一张 ⏸ blocking card，用户可以 Continue / Adjust / Cancel；Cortex 调 `agent_continue` 把回应 paste 进同一个 tmux session，CC 续跑。一个复杂任务可以有多个 checkpoint。**这是把 C-9 HITL 从 "执行前预览" 扩展到 "进程中分段汇报"**。 | "敏感操作，或者它要进行某些下一步… 多加一些中途的这种汇报或者控制的节点，作为一种阻塞式的行为" |
+
+### 实施影响（落地于本次会话）
+
+- **新组件**：
+  - [cortex/cortex/classifier.py](../../Code/Projects/Constellation-Server/cortex/cortex/classifier.py) — 一步分类：`{complex: bool, why: str}`. 简单走 v0.5 Router；复杂走 agent path. Fail-closed 到 complex.
+  - [cortex/cortex/agent_brief.py](../../Code/Projects/Constellation-Server/cortex/cortex/agent_brief.py) — 给 CC 的 brief 模板 v2.6: YOU MUST 强调 + R1/R2/R3 + self-check + phase pattern + inline-Twin slices（v0.5 selector 复用）。
+  - [tool-agent/tool_agent/adapters/claude_code.py](../../Code/Projects/Constellation-Server/tool-agent/tool_agent/adapters/claude_code.py) — `_agent` / `_agent_continue` / `_agent_kill` actions; jsonl tail + 8s thinking heartbeat + end_turn 完成检测.
+- **变更组件**：
+  - cortex.router — `AVAILABLE_TOOLS` 11→10 tools / 50+→11 actions（只剩 bounded single-call）；catalog 之外的能力都到 agent path. Adapter code 保留为 regression 安全网.
+  - cortex.server — `_handle_user_invoke` 先调 classifier；`_dispatch_complex_agent` 共享 brief + Twin selector + tmux dispatch；`_check_phase_done` 检测 checkpoint 弹 ⏸ card；`_handle_user_decision` 在 phase 上 dispatch `agent_continue`.
+  - tool-agent.server — concurrent RPC dispatch（之前 sequential，长跑 agent 会 block send_keys）.
+- **新事件类型**（INTERFACE-CONTRACTS 待补 §1.7 ~ §1.9）：`agent_progress`（非阻塞 ticker）、`progress_feedback`（free-form 用户中途插话，filler/substantive 分类）、`preview_action.kind="phase_checkpoint"`（⏸ blocking card with Continue/Adjust/Cancel options）.
+- **R-3 multi-step machinery**: 代码保留向后兼容，但 v2 catalog 已经无法表达需要 R-3 的复杂意图（那些都走 agent path 的 multi-phase checkpoint），R-3 实际处于 deprecated 状态.
+- **Mid-flight send_keys**（thinking 中途插话）: 列为已知 best-effort limitation；可靠的 mid-task 介入走 C-27 checkpoint pattern.
+
+### Diff to existing constraints
+
+- **C-9/C-10（HITL + preview-before-act）**: 加强——C-27 把 HITL 从 "execute-time preview" 扩展到 "phase-boundary checkpoints"；一个复杂任务现在可能有 2-3 个独立 yield 点.
+- **C-13/N-7（眼镜是终端之一）**: 不变；C-25/C-26 是面向 Glass 的，未来其他终端 (Console / 手机 PWA) 用同一个进度事件流但可以不同 ergonomics.
+- **C-20/C-21/C-22/C-23（R-3）**: 形式上保留，实际被 C-24/C-27 取代——Router 多步规划由 CC 的内生 agent loop + phase checkpoint 实现，而不是 Router 反复 re-invoke.
+- **C-8（Dispatch policy LLM-driven）**: 不变；分发决策仍然是 LLM 做，只是分两层（classifier → 选 path；planner OR CC 内部 → 选 tool）.
+
+### Open Questions
+
+- **OQ-R4-1**: classifier 现在用 gpt-5.2（已有 OpenAI key）；何时切到 haiku（需要 Anthropic API key plumb）？环境变量 `CORTEX_CLASSIFIER_MODEL` 已开口；等优先级.
+- **OQ-R4-2**: phase checkpoint 卡片在 Glass 上是新的 UX surface（不是 preview_action 也不是 hud_show）。Console PWA 已渲染，Glass 端 design 待 Phase 3b/4.
+- **OQ-R4-3**: 当 agent 失败（CC crash / 超时 / 写出 invalid schema）时，receipt 怎么写？v1 写 partial receipt with `error` field；Phase 7 polish.
+- **OQ-R4-4**: 一个 session 跨多个 user_invoke（"接着上次的继续"）目前不支持——CC 会 spawn 新 session。如果需要，加 `event.payload.continue_from=<rcpt_id>` 字段.
+
+---

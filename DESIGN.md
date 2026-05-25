@@ -1,9 +1,11 @@
 # Constellation — Framework Design
 
-**Version**: v0.8
-**Status**: 设计阶段 → 实现完成 Phase 1 + Phase 2 + R-3 paradigm；ready for Phase 3 Android client
-**关联文档**: [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · [UI-UX.md](UI-UX.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [twin-seed/](twin-seed/) · [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md) · [USE-CASE-AUDIT.md](USE-CASE-AUDIT.md) · [TOOL-IDEAS.md](TOOL-IDEAS.md) · [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) · [Doc/ui-mockup.html](Doc/ui-mockup.html) · [Doc/brand/](Doc/brand/)
-**Last updated**: 2026-05-24
+**Version**: v0.8 (frozen 2026-05-24); **superseded in part by [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md) as of 2026-05-25**
+**Status**: 设计阶段 → Phase 1 + Phase 2 + R-3 + Phase 3a Web Console + Phase 5 v2 architecture pivot 都已实现
+**关联文档**: [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md) · **[AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md)** · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · [UI-UX.md](UI-UX.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [twin-seed/](twin-seed/) · [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md) · [USE-CASE-AUDIT.md](USE-CASE-AUDIT.md) · [TOOL-IDEAS.md](TOOL-IDEAS.md) · [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) · [Doc/ui-mockup.html](Doc/ui-mockup.html) · [Doc/brand/](Doc/brand/)
+**Last updated**: 2026-05-25 (added V2 supersedes banner)
+
+> ⚠ **Reader pointer (2026-05-25)**: After Phase 5's v2 architecture pivot, **Cortex Router is no longer the agent**. The "Cortex Router does multi-step planning across 12 adapters" framing throughout this doc is historical. The agent now is Claude Code in tmux; Cortex is a thin classifier + HITL gate + glanceable progress relay + multi-phase checkpoint orchestrator. The 7 Promises (P1-P7) still hold — only the *implementation* of P7 (Multi-Step with Mid-Task Yield) and the Router internals shifted. **Read [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md) before treating any §3+ component spec here as current.** New invariant (★) elevated: visible process + correction (see SoT addendum and V2 §0).
 
 本文档是 Constellation 的**框架设计稿**。所有内容从 [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md)（用户意图宪法）+ 设计 session 的全部讨论 derive。
 

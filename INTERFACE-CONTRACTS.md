@@ -50,12 +50,23 @@
 | ~~`voice_text`~~ + ~~`photo`~~ kinds 拆分 | 合并成 `user_invoke`（每次必带 image + text）|
 | ~~`touch_gesture`~~ / ~~`ring_gesture`~~ kinds | 戒指处理，对 Cortex 不可见 |
 
-### 1.3 Event Kinds (v1 仅 2 种)
+### 1.3 Event Kinds
+
+**v1 base set (2 kinds)**:
 
 | kind | payload | 说明 |
 |---|---|---|
 | `user_invoke` | `{ image: <base64\|blob ref>, text: "..." }` | **每次用户触发都同时带图片 + STT 文字**。Glass 不区分"拍照场景"和"语音场景"；触发瞬间立即抓一张照片 + 开始 STT，两个一起发给 Cortex。Cortex 决定要哪个。用户没说话时 `text` 为空串 |
 | `user_decision` | `{ in_reply_to: "cmd_...", decision: "send"\|"feedback"\|"dismiss", feedback_text?: "..." }` | 对 Cortex 推送的 preview / hud 的响应。`feedback` 自带 `feedback_text` (新一轮 STT 录入)，Cortex 拿到后重新生成迭代版 preview |
+
+**V2 streaming-agent additions (SoT C-25/C-27)** — appear only while an agent dispatch is in flight:
+
+| kind | payload | 说明 |
+|---|---|---|
+| `progress_feedback` | `{ in_reply_to: "cmd_...", text: "...", source: "voice"\|"text" }` | Free-form 中途插话。Glass 收到 `progress` command 期间麦克风/输入仍然开着；用户随口说的内容打包成 `progress_feedback`. Cortex 端的 filler/substantive classifier 把口胡 ("OK", "嗯", ".") 安静丢掉，把实质内容 ("PhotoRing 不是 PhotoRig") inject 进 CC 的 tmux session 作为 user message. **不阻塞 agent**；只是补 context. |
+| `agent_decision` | `{ in_reply_to: "cmd_...", decision: "continue"\|"adjust"\|"cancel", text?: "..." }` | 对 phase-checkpoint ⏸ blocking card 的响应（见 §2.6）. `continue` → Cortex 直接 dispatch `claude_code.agent_continue` 把 "continue" 喂给 tmux. `adjust` → 必带 `text`（用户的修改要求）作为 user message 喂给 tmux. `cancel` → Cortex 调 `agent_kill` 终止 session 并写 partial receipt. |
+
+> **Mid-flight 注意**: `progress_feedback` 是 best-effort——tmux send-keys 在 CC `stop_reason=tool_use` 期间不一定 surface 成 user message。要可靠的中途介入，让 CC 自己在 phase 边界停下来（C-27 / §2.6 phase_checkpoint）。
 
 ### 1.4 设计说明
 
@@ -165,7 +176,9 @@ step-level receipts `[step N]` for multi-step. Final receipt at last step.
 | ~~`haptic_pulse`~~ kind | v1 不主动振动（节能 + Ring 触觉反馈由 Ring 自己决定）|
 | ~~`tts_speak`~~ kind | v1 不主动 TTS（节能 + 用户大多在 HUD 静默环境）|
 
-### 2.3 Command Kinds (v1 仅 4 种)
+### 2.3 Command Kinds
+
+**v1 base set (4 kinds)**:
 
 | kind | payload | 说明 |
 |---|---|---|
@@ -173,6 +186,13 @@ step-level receipts `[step N]` for multi-step. Final receipt at last step.
 | `preview_action` | `{ action_description, action_diff, card_id? }` | 显示待执行动作预览，等 `user_decision` |
 | `hud_update` | `{ card_id, body }` | 更新已显示的卡 |
 | `hud_dismiss` | `{ card_id }` | 主动撤掉卡 |
+
+**V2 streaming-agent additions (SoT C-25/C-26)**:
+
+| kind | payload | 说明 |
+|---|---|---|
+| `progress` | `{ card_id, icon, label, kind: "tool"\|"read"\|"write"\|"thinking"\|"plan"\|"error"\|"heartbeat"\|"feedback_noted"\|... }` | **非阻塞 ticker frame** — agent 跑动期间每 2-3 秒一帧。HUD 渲染为 colored row（emoji + ≤80 字符 label）；不需要用户响应；累积成进度时间线。`thinking` 包含心跳（"💭 still thinking… (Ns quiet)"）当 jsonl 沉默 ≥8s. **Glass 此时麦克风/输入仍然开着** — 任意 utterance 走 `progress_feedback`. |
+| `preview_action` (variant: `phase_checkpoint`) | `{ card_id, kind: "phase_checkpoint", summary, next, actions?: [...], icon: "⏸" }` | **阻塞 ⏸ checkpoint card** — CC emit `{phase_done:true, summary, next, ...}` + end_turn 时 Cortex 弹此卡. 必带 `summary` (本 phase 干了什么) + `next` (下 phase 要干什么). 可选 `actions[]` if 当前 phase 也产出了可 SEND 的动作. Options: `[Continue, Adjust, Cancel]`. **用户 `Adjust` 是 free-form 输入**（mic / textbox），走 `agent_decision { decision: "adjust", text }`. |
 
 ### 2.4 关键设计
 
@@ -202,6 +222,40 @@ Plan is Router's output to Cortex (NOT a wire message visible to Glass). Glass o
 When `task_continues: true`:
 - Cortex enforces `hud_response.kind = preview_action` (overrides `hud_show`) so the user has a yield point (C-22 always-mic doesn't help if Glass auto-closes the card)
 - After SEND or any FEEDBACK, Cortex appends to `task_history` and re-invokes Router
+
+> **V2 status**: With Phase 5g, the planner-visible catalog can no longer express asks that need `task_continues`. The R-3 machinery still exists for backward compat but is functionally dormant — multi-step lives in the agent path via §2.6 below.
+
+---
+
+## 2.6 Internal: Agent Path Schemas (V2 — SoT C-24/C-25/C-27)
+
+When the classifier returns `{complex: true}`, Cortex bypasses §2.5 entirely and dispatches `claude_code.agent` with a brief from [`cortex.agent_brief.build_agent_brief`](../../Code/Projects/Constellation-Server/cortex/cortex/agent_brief.py). CC produces a final structured JSON conforming to:
+
+```json
+{
+  "summary": "≤2 sentence statement of what was done / what the user needs to decide",
+  "actions": [
+    { "type": "email_send"\|"reminder_add"\|"calendar_event"\|"imessage_send"\|"fs_write"\|"shortcut_run"\|"none",
+      "args": { /* tool-specific */ },
+      "preview_lines": [ "human-readable bullet for HUD" ]
+    }
+  ],
+
+  // ── Multi-phase checkpoint pattern (optional; SoT C-27) ──
+  "phase_done": true | false,        // if true, CC will pause and wait for agent_continue
+  "next": "≤1 sentence statement of what the NEXT phase will do (only when phase_done=true)"
+}
+```
+
+**Mapping to Glass commands**:
+- `actions[]` non-empty + `phase_done: false` (or absent) → Cortex builds a multi-row `preview_action` card; SEND iterates each action through its executor adapter.
+- `actions[]` empty + `phase_done: false` → Cortex sends a `hud_show` with `summary` as body (information-only return).
+- `phase_done: true` → Cortex sends a `preview_action` with `kind: "phase_checkpoint"` (see §2.3) so the user can Continue / Adjust / Cancel before the agent enters its next phase.
+
+**Streaming side-channel** during the dispatch:
+- `tool_agent.adapter.claude_code._tail_jsonl_until_idle_from` reads CC's session jsonl line-by-line, distills each event to `{icon, label, kind}` (Bash → 🔧 `description`, Read → 📖 `filename`, etc.), and pushes it as an `agent_progress` Event to Cortex.
+- Cortex forwards each as a `progress` Command to Glass (§2.3 variant). 8s of jsonl silence triggers a synthetic heartbeat frame (kind: "thinking").
+- Completion: `stop_reason == "end_turn"` is primary; idle-after-text fallback; hard timeout last.
 - Maximum 5 rounds per task
 
 ---
