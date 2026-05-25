@@ -1,7 +1,7 @@
 # Constellation — Implementation Plan
 
 **Version**: v0.4
-**Status**: Phase 1 ✓ + Phase 2 ✓ + R-3 ✓ + Phase 5 UC2 demoed ✓ + **Phase 3a Web Console ✓ live at edge.example.com** → next: **Phase 3b Android-native**
+**Status**: Phase 1 ✓ + Phase 2 ✓ + R-3 ✓ + Phase 5 UC2 demoed ✓ + Phase 3a Web Console ✓ + **Phase 5 v2 architecture pivot (CC-as-agent backend) ✅ infra landed, last-mile tuning in progress (see [TODO.md](TODO.md) P0)** → next: P0 send_keys fix + Sonnet model trial + Phase 5c classifier wiring
 **关联文档**: [DESIGN.md](DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · [UI-UX.md](UI-UX.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [TOOL-IDEAS.md](TOOL-IDEAS.md) · [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) · [Doc/ui-mockup.html](Doc/ui-mockup.html) · [HANDOFF.md](HANDOFF.md)
 **Last updated**: 2026-05-25
 
@@ -18,22 +18,31 @@ Critical path: **Phase 0 → 1 → 2 → 3 → 4 → 5 → 7 → 9**. Phases 6 (
 
 Each phase has: scope, deliverables, dependencies, success criteria, deferred items, time estimate.
 
-### Status at 2026-05-25 (Phase 3a wrap)
+### Status at 2026-05-25 (Phase 5 v2 architecture, mid-flight)
 
 | Phase | Status | Notes |
 |---|---|---|
 | 0 — Prereqs | ✓ done | OpenAI key; CC CLI 2.1.133; Twin seeded; Tailscale ✓ on Mac + Linux; edge.example.com DNS + LE cert |
 | 1 — Mac spine | ✓ done | full_loop.py 4× PASS; launchd cycle verified |
 | 2 — Mac UC1 + Slice A/B/C | ✓ done | 12 adapters; UC1 wall-clock 5/5 PASS mean 3.9s; confirm-policies enforced |
-| 2.5 — R-3 multi-step | ✓ done | SoT R-3 (C-20~23 + N-8~11); multistep_deep.py 3/3 PASS |
-| 5 — UC2 reverse-wake | ✓ demoed early | real CC permission → tool_card → allow_once → file written |
-| **3a — Web Console** | **✓ done 2026-05-25** | live https://edge.example.com/; cookie auth; 9 routes incl. HUD WSS / CC live pane / Twin browser + edit / prompt inspector / SSE trace / Web Push; full workflow test PASS (auto+preview+feedback) |
-| **3b — Android-native client** | **⏸ NEXT** | rooted Android phone first; inherits proven protocol from 3a; **always-on mic per SoT C-22 mandatory from day 1** |
-| 4 — Rokid Glass deploy | ⏸ | post-3b; rokid build flavour of glass-android module |
-| 6 — UC3 face | ⏸ | parallelisable; local face recognition lib in Tool Agent |
-| 7 — Insight Engine + Implicit Learning | ⏸ | parallelisable; Cortex stops being purely reactive |
-| 8 — MCP server | ⏸ | parallelisable; expose sanctioned Twin slices to external AI |
-| 9 — Dogfood + cool-ex stress | ⏸ | 7-day wear; ★ list from DESIGN §5 |
+| 2.5 — R-3 multi-step | ✓ done | (deprecated by Phase 5 v2 — CC owns multi-step now) |
+| 3a — Web Console | ✓ done 2026-05-25 | https://edge.example.com/; cookie auth; 9 routes; full workflow test PASS |
+| **5 (v2 pivot)** — CC-as-agent + streaming progress + mid-flight correction | **✅ infra landed; P0 last-mile** | per [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md). Streaming agent action, progress frames, classifier, actions[] preview + executor SEND, brief v2 — all in place. `actions_e2e.py` PASS. Kao-style test partial: [TODO P0.1/P0.2](TODO.md) blocking. |
+| **5c** — Router → tiny classifier (haiku) | ⏸ NEXT | wire complex asks to agent path through user_invoke; see TODO P1.1 |
+| **5g** — retire v0.5 multi-step Router + obsolete adapters | ⏸ after 5c | TODO P1.2 |
+| 3b — Android-native client | ⏸ | deferred until P0/P1 stabilise; inherits Phase 5 protocol shape |
+| 4 — Rokid Glass deploy | ⏸ | post-3b |
+| 6 — UC3 face | ⏸ | parallelisable |
+| 7 — Insight Engine + Implicit Learning | ⏸ | parallelisable; reverse-wake plumbing already done via Phase 3a.6 push |
+| 8 — MCP server | ⏸ | parallelisable; ~3 days |
+| 9 — Dogfood + cool-ex stress | ⏸ | final |
+
+**The single biggest delta vs prior status table**: Phase 5 is no longer "UC2
+reverse-wake demoed early" — it has expanded into the full v2 architecture
+pivot. The reverse-wake demo from Phase 2 closing day is *part* of Phase 5
+infra but only a slice; the meat is the streaming agent path. See
+[AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md) for what's actually
+in Phase 5, and [TODO.md](TODO.md) for what's actually open.
 
 ---
 
@@ -274,32 +283,77 @@ domain):
 
 ---
 
-### Phase 5 — UC2 (Claude Code reverse-wake + status query)
+### Phase 5 — v2 architecture pivot (CC-as-agent backend + streaming progress) ✅ infra landed 2026-05-25
 
-**Scope**: bidirectional supervision (P4). Build the reverse-wake event path end-to-end.
+**The original Phase 5 was "UC2 Claude Code reverse-wake".** That demo
+landed early in Phase 2 closing day. After Phase 3a (Web Console) Zack
+re-examined the v0.5 Router prompt and asked the architectural question
+that re-shaped Phase 5:
 
-**Deliverables**:
-- `claude_code` adapter's `watch_for_reverse_wake()` async loop:
-  - Capture-pane polling per [twin-seed/skills/claude-code-control.md](twin-seed/skills/claude-code-control.md)
-  - On permission_pattern match → emit `tool_reverse_wake` event into Cortex
-- Cortex's reverse-wake event handling:
-  - Re-runs Router with a different Twin context_pack
-  - Outputs `tool_card` HUD response per [CORTEX-ROUTER-PROMPT.md Example 4](CORTEX-ROUTER-PROMPT.md)
-  - Pushes via Hybrid transport (push notification if Glass idle)
-- Status query path: Voice Invoke "how's it going" → Cortex dispatches `claude_code.get_status` → renders summary card
-- Tool Agent State Tracker: maintains active long-task list, exposes via `get_status`
+> "感觉越设计越复杂了… 我能不能直接把这些东西甩给 CC？"
+> "我需要看到过程，不是直接看到结果。每 2-3s 看到 agent 在干什么；
+> 我说错了也能纠正。"
 
-**Success criteria**:
-- Start a long Claude Code task on Mac mini, walk away with phone/glasses
-- When CC hits a permission prompt, HUD card appears within 5 s
-- Tap ONCE → `claude_code.send_keys` fires `y\n` → CC continues
-- "How's the build" voice query returns a status card with last 10 lines + state
+This expanded Phase 5 into a **full architectural pivot**. See
+[AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md) for the canonical
+design + [PROMPT-DESIGN-V2.md](PROMPT-DESIGN-V2.md) for the brief
+methodology that came with it.
 
-**Depends on**: Phase 2 (foundation), Phase 3 (card rendering); Phase 4 if testing on Rokid
+**Scope (revised)**:
 
-**Deferred**: build watcher / GitHub PR review reverse-wakes (those are framework-supported cool features, not v1 must)
+Cortex stops being the agent. CC becomes the agent. Cortex shrinks to:
+classifier (fast_query / simple_action / complex) + HITL preview gate +
+receipt writer. The 12 hand-built adapters shrink to 7 executors (preview-
+always actions only; everything else CC does via osascript/shell). Progress
+is streamed to Glass as non-blocking ticker frames; mid-flight corrections
+inject into CC via tmux send-keys.
 
-**Estimated time**: 1 week
+**Sub-phases**:
+
+| Sub | Scope | Status |
+|---|---|---|
+| 5a | `claude_code.agent` action: tmux + tail CC's session.jsonl (free stream-json equivalent via subscription quota); distill events to glanceable `{icon, ≤80c}` progress; return structured JSON | ✓ done |
+| 5b | Cortex `agent_progress` / `progress_feedback` event handlers + classifier (silence/OK drops; substantive injects via tmux send-keys) + HUD progress ticker render | ✓ done |
+| 5c | Router classifier (haiku tier) replacing v0.5 multi-step | ⏸ NEXT (TODO P1.1) |
+| 5d | Mid-flight correction wire (depends on 5b infra + P0.1 send_keys fix) | ⏳ blocked on P0.1 |
+| 5e | `actions[]` schema parse + executor mapper + multi-row preview card + SEND iterates | ✓ done |
+| 5f | Kao-paradigm e2e with mid-flight correction | ⏳ partial; depends on P0.1 + P0.2 |
+| 5g | Retire dead v0.5 Router + 9 obsolete adapter actions | ⏸ after 5c |
+
+**Verified working** (commits ef6387d → 31aaa1f in Constellation-Server):
+
+- Streaming agent: `agent_smoke.py` + `actions_e2e.py` both PASS
+- $0 marginal cost (TUI subscription, not API quota)
+- Median progress event gap: 2-3s (target ≤3s)
+- glanceable distillation (emoji + ≤80c labels per HUD spec)
+- `actions[]` → preview card with rendered rows (email / reminder /
+  calendar_event / imessage / fs_write / shortcut)
+- Three architectural bugs caught + fixed: tool_agent sequential RPC
+  dispatch (now concurrent), `idle_after_any_assistant` false-completion
+  (now `stop_reason == end_turn`), /tmp symlink path mismatch
+
+**P0 last-mile (not yet working)** — see [TODO.md](TODO.md):
+
+- **P0.1**: send_keys reaches tmux pane but doesn't surface as a CC user
+  message during `stop_reason="tool_use"` waits. Mid-flight correction
+  proven at Cortex↔Glass; not yet at CC layer.
+- **P0.2**: Default `claude-opus-4-7[1m]` extended thinking is too slow +
+  stalls. Try `--model claude-sonnet-4-6`.
+- **P0.3**: CC's "never bail" R2 rule (in brief v2) helps but isn't
+  bulletproof under deep research stalls.
+
+**Success criteria** (revised):
+- A Kao-style multi-tool ask completes in ≤30s
+- HUD shows a new visible event every ≤5s during the run
+- A mid-flight correction (spoken/typed during a progress event) is
+  honoured: the final `actions[]` reflects the correction
+- The original simple-ask paradigm (A) still works through a fast path
+
+**Depends on**: Phase 2 (executor adapters), Phase 3a (Web Console + push)
+
+**Deferred**: anything that requires P0/P1 to land first
+
+**Estimated time remaining**: P0 fixes ~1d; 5c+5g ~1d; total ~2d
 
 ---
 
