@@ -1,9 +1,9 @@
 # Constellation — Implementation Plan
 
-**Version**: v0.3
-**Status**: **Phase 1 ✓ + Phase 2 ✓ + R-3 multi-step paradigm ✓ + Phase 5 UC2 demoed early ✓** → next: Phase 3 Android phone client
-**关联文档**: [DESIGN.md](DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · [UI-UX.md](UI-UX.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [twin-seed/](twin-seed/) · [TOOL-IDEAS.md](TOOL-IDEAS.md) · [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) · [Doc/ui-mockup.html](Doc/ui-mockup.html) · [HANDOFF.md](HANDOFF.md)
-**Last updated**: 2026-05-24
+**Version**: v0.4
+**Status**: Phase 1 ✓ + Phase 2 ✓ + R-3 ✓ + Phase 5 UC2 demoed ✓ + **Phase 3a Web Console ✓ live at edge.example.com** → next: **Phase 3b Android-native**
+**关联文档**: [DESIGN.md](DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · [UI-UX.md](UI-UX.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [TOOL-IDEAS.md](TOOL-IDEAS.md) · [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) · [Doc/ui-mockup.html](Doc/ui-mockup.html) · [HANDOFF.md](HANDOFF.md)
+**Last updated**: 2026-05-25
 
 ---
 
@@ -18,21 +18,22 @@ Critical path: **Phase 0 → 1 → 2 → 3 → 4 → 5 → 7 → 9**. Phases 6 (
 
 Each phase has: scope, deliverables, dependencies, success criteria, deferred items, time estimate.
 
-### Status at 2026-05-24 (R-3 wrap)
+### Status at 2026-05-25 (Phase 3a wrap)
 
 | Phase | Status | Notes |
 |---|---|---|
-| 0 — Prereqs | ✓ done | OPENAI_API_KEY set; Claude Code CLI 2.1.133 installed; Twin seeded; Tailscale still pending (Phase 3 blocker, not 0-2) |
+| 0 — Prereqs | ✓ done | OpenAI key; CC CLI 2.1.133; Twin seeded; Tailscale ✓ on Mac + Linux; edge.example.com DNS + LE cert |
 | 1 — Mac spine | ✓ done | full_loop.py 4× PASS; launchd cycle verified |
-| 2 — Mac UC1 + Slice A/B/C | ✓ done | 12 adapters live; UC1 wall-clock 5/5 PASS mean 3.9s; confirm-policies enforced |
-| 2.5 — R-3 multi-step paradigm | ✓ done | SoT R-3 (C-20~23 + N-8~11); multistep_deep.py 3/3 PASS; CORTEX-ROUTER-PROMPT v0.2 |
-| 5 — UC2 reverse-wake | ✓ demoed early | real CC permission → tool_card → allow_once → CC continued; file written |
-| 3 — Android phone client | ⏸ NEXT | needs always-mic per C-22 + Tailscale on Mac mini |
-| 4 — Rokid deploy | ⏸ | post-Phase 3 |
-| 6 — UC3 face | ⏸ | parallelizable; Phase 6 |
-| 7 — Insight + learning | ⏸ | Phase 7 |
-| 8 — MCP | ⏸ | parallelizable; Phase 8 |
-| 9 — Dogfood | ⏸ | Phase 9 (final) |
+| 2 — Mac UC1 + Slice A/B/C | ✓ done | 12 adapters; UC1 wall-clock 5/5 PASS mean 3.9s; confirm-policies enforced |
+| 2.5 — R-3 multi-step | ✓ done | SoT R-3 (C-20~23 + N-8~11); multistep_deep.py 3/3 PASS |
+| 5 — UC2 reverse-wake | ✓ demoed early | real CC permission → tool_card → allow_once → file written |
+| **3a — Web Console** | **✓ done 2026-05-25** | live https://edge.example.com/; cookie auth; 9 routes incl. HUD WSS / CC live pane / Twin browser + edit / prompt inspector / SSE trace / Web Push; full workflow test PASS (auto+preview+feedback) |
+| **3b — Android-native client** | **⏸ NEXT** | rooted Android phone first; inherits proven protocol from 3a; **always-on mic per SoT C-22 mandatory from day 1** |
+| 4 — Rokid Glass deploy | ⏸ | post-3b; rokid build flavour of glass-android module |
+| 6 — UC3 face | ⏸ | parallelisable; local face recognition lib in Tool Agent |
+| 7 — Insight Engine + Implicit Learning | ⏸ | parallelisable; Cortex stops being purely reactive |
+| 8 — MCP server | ⏸ | parallelisable; expose sanctioned Twin slices to external AI |
+| 9 — Dogfood + cool-ex stress | ⏸ | 7-day wear; ★ list from DESIGN §5 |
 
 ---
 
@@ -155,9 +156,61 @@ Phase 0 ──► Phase 1 ──► Phase 2 ──► Phase 3 ──► Phase 4 
 
 ---
 
-### Phase 3 — Android-phone client (rooted, debug surface)
+### Phase 3a — Web Console (✓ done 2026-05-25)
 
-**Scope**: build the Glass client on a **rooted Android phone first** (per Zack's preferred workflow). Same code path, easier iteration. Deploy to Rokid Glass in Phase 4.
+**Scope**: a public-domain SPA (`edge.example.com`) that doubles as (a) interim
+Glass client (full HUD/WSS protocol so Phase 3b inherits a battle-tested wire) and
+(b) the permanent **control plane** — richer than the eyewear could ever be (live CC
+panes, twin browser, prompt inspector, trace stream, push notifications).
+
+**Deliverables** (in [Constellation-Console.git](https://github.com/MRziyi/Constellation-Console)):
+
+- `cortex/` (in [Constellation-Server](https://github.com/MRziyi/Constellation-Server)) gains
+  `:8890` HTTP management surface: `control_plane.py` rings + `http.py` (16 routes:
+  cc/sessions, cc/pane, cc/send_keys, cc/kill, twin/{tree,read,write}, receipts,
+  changelog, tasks/active, events, dispatches, llm/calls{/id}, llm/stats, adapters,
+  system/status, test/invoke, trace/stream SSE). All LLM calls flow through
+  `llm_cache.set_call_observer(plane.record_llm_call)` for prompt inspector.
+- `edge/` FastAPI on Linux (`edge.example.com:9100` behind nginx + Caddy-issued LE
+  TLS): cookie auth + brute-force lockout + REST/SSE proxy + WSS relay + Web Push
+  (pywebpush) + systemd service `console-edge.service`.
+- `web/` Vite + React 19 + TS + Tailwind v4 SPA with 9 routes: HUD (default; WSS
+  Glass client, text + photo composer, preview cards, multi-step inline), Claude Code
+  (master-detail + live tmux pane 1.5s poll + send_keys + kill), Live Trace (SSE
+  pub-sub), Active Tasks, Twin (file tree + md viewer + edit-save), Receipts (date
+  picker + md render), LLM Calls (prompt inspector — system + user prompts + raw
+  response), System (Mac tiles + push enable + LLM cost/cache), Adapters.
+- PWA: manifest.json (scope:/, start_url:/hud, display:standalone) + apple meta tags
+  + 4 icons + service worker (registers eagerly; handles push events + click-to-focus).
+- Web Push: VAPID generated on Linux; edge has SSE consumer task that fires push on
+  `tool_reverse_wake` events so AFK user gets phone notification when CC needs perms.
+
+**Success criteria** (verified 2026-05-25 via end-to-end workflow test through public
+domain):
+- Auth: cookie flow, 401 without cookie, 200 with ✓
+- AUTO policy paradigm: `reminders.add` → Router emits hud_show, real reminder added ✓
+- PREVIEW policy paradigm: `fs.write` → preview_action; file empty pre-SEND; written
+  post-SEND with exact content ✓
+- FEEDBACK iteration: preview v1 → free-form "write X instead" → re-route → v2 preview
+  reflects correction → SEND v2 → file matches v2 not v1 ✓
+- All 9 REST + SSE endpoints reflect activity in real time ✓
+- PWA assets (manifest, sw, icons) served with correct content-types ✓
+- Tool Agent stays localhost-only (verified ConnectionRefused from Linux) ✓
+
+**Deferred to 3a polish** (not blocking 3b):
+- iOS PWA test on actual phone (user verification pending)
+- Web Push reverse-wake end-to-end (mechanically works; awaits a real CC permission trigger)
+- Per-event/cmd_id linkage in dispatch + llm_call rings (currently null)
+
+**Depends on**: Phase 2 (12 adapters); Tailscale on Mac + Linux
+
+**Estimated effort**: 1 day actual (2 days estimate)
+
+---
+
+### Phase 3b — Android-phone client (rooted, debug surface)
+
+**Scope**: build the Glass client on a **rooted Android phone first** (per Zack's preferred workflow). Same code path, easier iteration. Deploy to Rokid Glass in Phase 4. **Inherits the WSS Glass protocol proven by Phase 3a** — same `user_invoke` / `Command` / `user_decision` shapes; smaller delta from web client to Kotlin client.
 
 **Deliverables**:
 - **`glass-android/`** (Android Studio module, Kotlin + Jetpack Compose):
