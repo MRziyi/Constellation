@@ -1,7 +1,7 @@
 # Constellation — Implementation Plan
 
 **Version**: v0.4
-**Status**: Phase 1 ✓ + Phase 2 ✓ + R-3 ✓ + Phase 5 UC2 demoed ✓ + Phase 3a Web Console ✓ + **Phase 5 v2 architecture pivot (CC-as-agent backend) ✅ infra landed, last-mile tuning in progress (see [TODO.md](TODO.md) P0)** → next: P0 send_keys fix + Sonnet model trial + Phase 5c classifier wiring
+**Status**: Phase 1 ✓ + Phase 2 ✓ + R-3 ✓ + Phase 5 UC2 demoed ✓ + Phase 3a Web Console ✓ + **Phase 5 v2 architecture pivot (CC-as-agent backend, classifier auto-routing, pruned executor catalog) ✅ landed 2026-05-25** → next: 3b Android client / 7 Insight Engine / dogfood
 **关联文档**: [DESIGN.md](DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · [UI-UX.md](UI-UX.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [TOOL-IDEAS.md](TOOL-IDEAS.md) · [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) · [Doc/ui-mockup.html](Doc/ui-mockup.html) · [HANDOFF.md](HANDOFF.md)
 **Last updated**: 2026-05-25
 
@@ -28,8 +28,8 @@ Each phase has: scope, deliverables, dependencies, success criteria, deferred it
 | 2.5 — R-3 multi-step | ✓ done | (deprecated by Phase 5 v2 — CC owns multi-step now) |
 | 3a — Web Console | ✓ done 2026-05-25 | https://edge.example.com/; cookie auth; 9 routes; full workflow test PASS |
 | **5 (v2 pivot)** — CC-as-agent + streaming + multi-phase checkpoints | **✅ landed 2026-05-25** | per [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md). Streaming agent (TUI tmux + jsonl tail, $0 marginal cost), glanceable progress + thinking heartbeat, v2.6 brief (YOU MUST + self-check + phase pattern), actions[] preview + executor SEND, **multi-phase checkpoint pattern** (CC emits {phase_done, next} → Cortex blocking ⏸ card → user Continue/Adjust/Cancel → `agent_continue` resumes CC in same tmux). Verified e2e: `actions_e2e.py` PASS, `multi_phase_e2e.py` PASS (1 checkpoint + 1 final, 28s, 11 progress events). |
-| **5c** — Router → tiny haiku classifier | ⏸ NEXT | so `user_invoke` automatically routes simple vs complex without dev endpoint POST |
-| **5g** — retire obsolete adapters from AVAILABLE_TOOLS | ⏸ after 5c | code stays in tool_agent (regression safety); prune Router's catalog |
+| **5c** — Auto-routing classifier ahead of planner | **✅ landed 2026-05-25** | `cortex.classifier` emits `{complex: bool, why: str}` in 1 LLM call (gpt-5.2 today, swap to haiku once Anthropic key added). On `complex=true` → shared `CortexServer._dispatch_complex_agent` (brief + Twin selector + tmux dispatch). On `complex=false` → existing v0.5 selector+planner+executor. Fails-closed to complex on any error. Verified: `"battery?"` → v0.5 path; `"look at my last Kao email and propose a reply"` → agent path + tmux live. |
+| **5g** — Prune `AVAILABLE_TOOLS` catalog | **✅ landed 2026-05-25** | 11 tools / 50+ actions → **10 tools / 11 actions** all bounded single-call (reminders.add / calendar.add_event,list_today / mail.send / fs.write / system_status.get / safari_state.current_tab / apple_shortcuts.run / imessage.send / echo / claude_code.agent). `twin_query` removed (agent has Twin via add_dirs). Adapter code retained in tool_agent for regression safety + agent dispatch. SYSTEM_PROMPT result_format section simplified (`draft` marked legacy). |
 | 3b — Android-native client | ⏸ | deferred until P0/P1 stabilise; inherits Phase 5 protocol shape |
 | 4 — Rokid Glass deploy | ⏸ | post-3b |
 | 6 — UC3 face | ⏸ | parallelisable |
@@ -314,11 +314,11 @@ inject into CC via tmux send-keys.
 |---|---|---|
 | 5a | `claude_code.agent` action: tmux + tail CC's session.jsonl (free stream-json equivalent via subscription quota); distill events to glanceable `{icon, ≤80c}` progress; return structured JSON | ✓ done |
 | 5b | Cortex `agent_progress` / `progress_feedback` event handlers + classifier (silence/OK drops; substantive injects via tmux send-keys) + HUD progress ticker render | ✓ done |
-| 5c | Router classifier (haiku tier) replacing v0.5 multi-step | ⏸ NEXT (TODO P1.1) |
-| 5d | Mid-flight correction wire (depends on 5b infra + P0.1 send_keys fix) | ⏳ blocked on P0.1 |
+| **5c** | Auto-routing classifier ahead of planner (one LLM call, JSON `{complex, why}`; complex → shared `_dispatch_complex_agent`, simple → existing v0.5 path) | **✓ done 2026-05-25** |
+| 5d | Mid-flight correction wire | **mitigated by multi-phase checkpoint pattern** (reliable phase-boundary correction); send_keys remains best-effort for free-form mid-thinking notes |
 | 5e | `actions[]` schema parse + executor mapper + multi-row preview card + SEND iterates | ✓ done |
-| 5f | Kao-paradigm e2e with mid-flight correction | ⏳ partial; depends on P0.1 + P0.2 |
-| 5g | Retire dead v0.5 Router + 9 obsolete adapter actions | ⏸ after 5c |
+| 5f | Multi-phase checkpoint pattern (`{phase_done, summary, next, actions[]}` → ⏸ blocking card → `agent_continue`) | ✓ done 2026-05-25 (verified `multi_phase_e2e.py`) |
+| **5g** | Prune `AVAILABLE_TOOLS` catalog to executor + bounded-state-query set (10 tools, 11 actions); keep adapter code for regression safety | **✓ done 2026-05-25** |
 
 **Verified working** (commits ef6387d → 31aaa1f in Constellation-Server):
 
@@ -332,15 +332,19 @@ inject into CC via tmux send-keys.
   dispatch (now concurrent), `idle_after_any_assistant` false-completion
   (now `stop_reason == end_turn`), /tmp symlink path mismatch
 
-**P0 last-mile (not yet working)** — see [TODO.md](TODO.md):
+**Status update 2026-05-25**:
 
-- **P0.1**: send_keys reaches tmux pane but doesn't surface as a CC user
-  message during `stop_reason="tool_use"` waits. Mid-flight correction
-  proven at Cortex↔Glass; not yet at CC layer.
-- **P0.2**: Default `claude-opus-4-7[1m]` extended thinking is too slow +
-  stalls. Try `--model claude-sonnet-4-6`.
-- **P0.3**: CC's "never bail" R2 rule (in brief v2) helps but isn't
-  bulletproof under deep research stalls.
+- **P0.1 mid-flight send_keys**: classified as known limitation; mitigated
+  by the multi-phase checkpoint pattern. CC pauses at phase boundaries
+  (end_turn + `phase_done:true`), Cortex surfaces a ⏸ blocking card, user
+  types corrections, Cortex resumes via `agent_continue`. Free-form
+  mid-thinking send_keys remains best-effort (not load-bearing).
+- **P0.2 Opus extended thinking latency**: Zack chose to keep Opus 4.7
+  over Sonnet. Mitigated by the **thinking heartbeat** (8s silence → emit
+  "💭 still thinking… (Ns quiet)" so HUD doesn't look dead).
+- **P0.3 deep-research stalls / "never bail"**: brief v2.6 hardens this
+  with YOU MUST emphasis + R1/R2/R3 + self-check + the phase pattern
+  (partial-OK after one phase is better than never returning).
 
 **Success criteria** (revised):
 - A Kao-style multi-tool ask completes in ≤30s
@@ -353,7 +357,7 @@ inject into CC via tmux send-keys.
 
 **Deferred**: anything that requires P0/P1 to land first
 
-**Estimated time remaining**: P0 fixes ~1d; 5c+5g ~1d; total ~2d
+**Estimated time remaining**: 0 — Phase 5 (5a/5b/5c/5e/5f/5g) all landed 2026-05-25. Optional polish: HUD "Use agent" toggle to force the agent path; cheap-haiku swap-in (`CORTEX_CLASSIFIER_MODEL`) once Anthropic key is plumbed.
 
 ---
 
