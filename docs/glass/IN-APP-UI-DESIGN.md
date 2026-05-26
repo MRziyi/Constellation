@@ -62,7 +62,6 @@ MainActivity (Compose NavHost; 持久；接管 panel)
       │  - Endpoint URL (read-only display + [EDIT])
       │  - Connection status / last invoke
       │  - [TEST CONNECTION] CTA
-      │  - [LOG OUT] CTA (clears cookie → back to Login)
       │
       ├─ EditEndpoint  (route = EditEndpoint)
       │  - Text input for new URL
@@ -184,12 +183,12 @@ Status block 自己也是 `FocusableRow`（CLICK = drill into Connect）—— �
 │ Last invoke:   3 min ago     │
 │                              │
 │ ┃ TEST CONNECTION    ┃       │  ← Cta button (focusable)
-│                              │
-│ ┃ LOG OUT            ┃ ⚠      │  ← danger Cta
 └──────────────────────────────┘
 ```
 
 `TEST CONNECTION` 调 `POST /api/ping`，5s 超时；返回结果通过短暂的"toast"行（fixed位置，2s 自动消失）显示。
+
+**No logout**: per user direction 2026-05-26 — 第一次登录后 cookie 永久有效；不提供清除入口。如果将来需要换账号，卸载重装。
 
 ### 5.4 EditEndpointScreen.kt
 
@@ -312,9 +311,9 @@ phoneDebug 的 in-app UI = **跟 glass flavor 完全相同的 Composable**，只
 
 - **OQ-app-1** ~~endpoint 编辑性~~ → 已定**可编辑**（D5）
 - **OQ-app-2** ~~TEST 用哪个 endpoint~~ → 已定**新加 `/api/ping`**（D7）
-- **OQ-app-3** Logout 时是否真杀 Service？倾向**只清 cookie**——WSS 自己进 Offline → 401 → 回 NotLoggedIn 状态。Service 进程不死，下次 login 不需要重启 Service。
+- **OQ-app-3** ~~Logout~~ → **不做**。第一次登录持久；换账号靠卸载重装。
 - **OQ-app-4** ~~Halo Ring hint 文案~~ → 已定 "Pair Halo Ring..."（D8）
-- **OQ-app-5** Shortcuts 在 Halo Ring 视角下如何注册？ —— P3 阶段再回答，需要先看 `halo-ring-plugin-protocol.md` 现状。
+- **OQ-app-5** Shortcuts 在 Halo Ring 视角下如何注册 → **协议清楚**：暴露 `HaloActionsProvider` ContentProvider 返回 cursor (`action_id=shortcut_<id>`, `label`, `group=shortcuts`)；接收端 `HaloTriggerReceiver` 监听 `com.halo.ring.action.TRIGGER` Intent。stubs 已在 `halo/` 目录，P-app.D 填实现即可。
 
 ---
 
