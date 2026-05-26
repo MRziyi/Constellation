@@ -500,3 +500,67 @@ Phase 2/3a 收尾后 Zack 在 v0.5 multi-step + 12-adapter 路径上做了几次
 - **OQ-R4-4**: 一个 session 跨多个 user_invoke（"接着上次的继续"）目前不支持——CC 会 spawn 新 session。如果需要，加 `event.payload.continue_from=<rcpt_id>` 字段.
 
 ---
+
+## Revision-5: 2026-05-26: 3-button 阻塞卡 · Twin v2 · 自动 distiller
+
+### 触发
+
+完成 Phase 5 v2 + Twin v2 重设计 + auto-distiller 实现后，Zack 对几个关键点
+做了最终锁定（含原话）：
+
+> "严格只有 approve、modify 和 kill 三个按钮"
+>
+> "你不仅写这些战略用的 skill，就是能普通用的 skill，它就普通...只有那种涉及到我的数字孪生了...具有我的特点、个性，对于某一类工作的做法，只有这一类有我的特点、明确个人特色的，才能成为我的 digital profile"
+>
+> "它的自动整理是什么时候触发的呢？不应该由我主动来触发吧。它整理完之后得告诉我"
+>
+> "整体我的数字孪生需要深入地重新进行设计，移除没必要的那些乱七八糟的字段，移除那些 placeholder。然后写出来这个创建新的的规则文件"
+
+锁定为 framework 级约束。
+
+### 新约束（追加到 [§8](#8-locked-constraints必须遵守的硬约束清单)）
+
+| 编号 | 约束 | 用户原话依据 |
+|---|---|---|
+| **C-28** | **每张 blocking card 严格三个按钮: Approve / Modify / Kill**。无 Feedback / Dismiss / Send all / 任意 option label. Modify 必带文本（点了就 focus composer 等输入；提交才算 Modify 决策；空 Modify re-surface 卡片）。Kill 终止任务 + 杀 tmux + drop pending + 写 kill 学习信号。**自由文本通道** (composer 直接输入 / Glass 麦克风) 和按钮通道平行：cortex 的 classifier 把 "ok / 没问题" 映射成 approve，"停 / 算了" 映射成 kill，其他实质内容映射成 modify。 | "严格只有 approve、modify 和 kill 三个按钮" |
+| **C-29** | **Twin 是 4-slot 结构 + 最小 frontmatter**。Layout: `identity.md` · `people/core/<slug>.md` · `receipts/<date>.md` · `.claude/skills/<name>/SKILL.md`. 不允许凭空 add 新的 top-level dir. Frontmatter 字段是**主动 query 用的 unambiguous key**，其他全部入 body 作为 prose. 具体: 人物文件只允许 `aliases / relation / email / phone / preferred_contact`; identity 无 frontmatter; receipts 无 frontmatter. **`~/constellation/twin/README.md` 是 agent 创建文件前必读的 contract**. | "深入地重新进行设计，移除没必要的那些乱七八糟的字段，移除那些 placeholder" |
+| **C-30** | **Skill 严格 Anthropic Agent Skills 格式** (`.claude/skills/<name>/SKILL.md` with `description:` frontmatter)。Skill 只服务于"有 Zack 个人特色的某类工作"——通用能力不写 skill（让模型基模负责）。**禁止 placeholder skill**。Skill 通过 implicit-learning 从 `_system/learning_queue.jsonl` 自动 distill 出来；hand-curate 只用于真正有个性的种子 (email-style / reminder-style / code-style 三个为种子). | "skill 只...具有我的特点、个性...才能成为我的 digital profile" |
+| **C-31** | **Twin 自动 distillation 是后台触发的，不由用户主动启动**. 系统观察 Modify 决策的累积，达到阈值 + 冷却时间后，自动跑 distiller agent；agent 找到稳定模式才 surface 一张 preview_action 卡片给用户. 没找到就静默. **用户必须能看见且能反馈** (Approve / Modify / Kill 同样 3-button 接口). | "它的自动整理是什么时候触发的呢？不应该由我主动来触发吧。它整理完之后得告诉我" |
+
+### 实施影响（落地于本次会话）
+
+**3-button (C-28)**:
+- `cortex.server._THREE_OPTIONS = ["Approve", "Modify", "Kill"]`. 强制覆盖 router emit 的任何 options.
+- `_classify_user_decision(decision, feedback_text)` 返回 `('approve'|'modify'|'kill', text?)`. Token sets 同时支持中英及 free-text 推断.
+- `_handle_user_decision` 三分支: kill 直接 cleanup; modify 检查 from_agent_final 走 resume，否则走 v0.5 advance; approve 执行.
+- Web CardView 三个按钮硬写; Modify focus composer + 紫色边框 placeholder; composer 直接输入也走 sendDecision feedback.
+
+**Twin v2 (C-29 / C-30)**:
+- 删除: `_system/TOC.md`, `_system/schema.md`, `skills/{dispatch-policy,pulse-feedback,insight-engine,twin-write-policy,claude-code-control}.md` (placeholders), 整个 `skills/` 目录.
+- 迁移: `skills/{email-style,reminder-style,code-style}.md` → `.claude/skills/<name>/SKILL.md` (Anthropic 格式).
+- 移动: `skills/confirm-policies.md` → `_system/confirm-policies.md` (Cortex 运行时配置，不是 skill).
+- Frontmatter 瘦身: identity.md 无 frontmatter; people files 只剩 `aliases / relation / email`; receipts 无 frontmatter (filename 携带日期).
+- 新文件: `~/constellation/twin/README.md` — 是 agent 创建内容前必读的 contract.
+- `cortex.agent_brief` ZACK'S TWIN 段重写: 指向 README.md + 4-slot 结构 + 写入规则.
+
+**Auto distiller (C-31)**:
+- 新模块 `cortex.distiller.Distiller`. 在 `_handle_user_decision` modify 分支 hook `on_modify(has_text=...)`. 达到 `DISTILL_MIN_MODIFIES=2` + 距上次 `DISTILL_COOLDOWN=30min` 后触发. 后台异步.
+- `build_distill_brief` 给 distiller agent 的 brief: 最近 N 条 learning_queue 条目 + Twin README + 输出契约 (同 `actions[]` schema). 关键约束 R1: 没有稳定模式时 emit empty actions:[], 不要硬凑.
+- Distiller 输出非空 actions[] 时通过现有 `_send_agent_card_for_decision` 弹一张 preview_action 卡; 用户 Approve/Modify/Kill 都走现有 3-button 闭环.
+- 没产出时 silent — 不 surface 卡片. 学习信号自身 (learning_queue.jsonl) 是 Phase-7 的训练语料.
+
+### Diff to existing constraints
+
+- **C-9/C-10 (HITL preview-before-act)**: 不变；distiller surface 的卡片同样 HITL.
+- **C-13/N-7 (眼镜是终端之一)**: 不变；3-button 设计在 Glass 是 ring tap / 麦克风 voice channel 双路.
+- **C-22 (always-on mic per card)**: 强化为 3-button 自由文本通道——分类器在 cortex 端统一映射.
+- **C-25 (visible process)**: 强化——distiller 卡片也加 "🔄 reviewing N recent interactions for patterns" 进度 emit.
+
+### Open Questions
+
+- **OQ-R5-1**: Distiller 阈值 (2 modifies / 30 min cooldown) 是 v0.1 猜值. 真实使用一周后需要根据"产出有用 vs 误报"比例调优.
+- **OQ-R5-2**: Distiller 找到的模式如果跟现有 skill 冲突 (e.g. 它建议改 email-style，但跟现有 email-style 矛盾)，谁赢？目前 CC 看到的会做 reasonable 决定，但没显式规则. 等遇到再说.
+- **OQ-R5-3**: `~/constellation/twin/README.md` 是 agent 必读 contract. 如果 README 自己被 Zack 修改了 (e.g. 加了新 field), distiller / agent 怎么知道？目前是 read-on-each-write. 没有 cache. 可能 OK.
+- **OQ-R5-4**: 长生命周期的 tmux per HUD session (P0.1 待做) 改变了 modify-on-FINAL 的语义 — 那时 --resume 不再必要 (tmux 还活着, 直接 send_keys). 这个设计变动需要 SoT 再 revise.
+
+---

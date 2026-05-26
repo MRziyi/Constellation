@@ -1,9 +1,9 @@
 # Constellation — Implementation Plan
 
-**Version**: v0.4
-**Status**: Phase 1 ✓ + Phase 2 ✓ + R-3 ✓ + Phase 5 UC2 demoed ✓ + Phase 3a Web Console ✓ + **Phase 5 v2 architecture pivot (CC-as-agent backend, classifier auto-routing, pruned executor catalog) ✅ landed 2026-05-25** → next: 3b Android client / 7 Insight Engine / dogfood
-**关联文档**: [DESIGN.md](DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · [UI-UX.md](UI-UX.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [TOOL-IDEAS.md](TOOL-IDEAS.md) · [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) · [Doc/ui-mockup.html](Doc/ui-mockup.html) · [HANDOFF.md](HANDOFF.md)
-**Last updated**: 2026-05-25
+**Version**: v0.5
+**Status**: Phase 1 ✓ + Phase 2 ✓ + R-3 ✓ + Phase 3a Web Console ✓ + **Phase 5 v2 ✅ landed** + **Twin v2 ✅ landed 2026-05-26** + **Auto-distiller wired 2026-05-26**. Active next: P0.1 long-lived CC per HUD session + P0.2 distiller dogfooding + P1.3 Glass for the real glasses. **Read [ARCHITECTURE-REFLECTION.md](ARCHITECTURE-REFLECTION.md) before any refactor.**
+**关联文档**: **[ARCHITECTURE-REFLECTION.md](ARCHITECTURE-REFLECTION.md)** · [DESIGN.md](DESIGN.md) · [HANDOFF.md](HANDOFF.md) · [TODO.md](TODO.md) · [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md) · [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · [UI-UX.md](UI-UX.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [TOOL-IDEAS.md](TOOL-IDEAS.md) · [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) · [Doc/ui-mockup.html](Doc/ui-mockup.html)
+**Last updated**: 2026-05-26
 
 ---
 

@@ -556,13 +556,17 @@ escalate. Fail-closed to capability.
 | **5e** | Output schema enforcement (`actions[]` array) + executor mapper + multi-row preview card + SEND iterates | ✅ done 2026-05-25 |
 | **5f** | Multi-phase checkpoint pattern (`phase_done`/`next` → ⏸ blocking card → `agent_continue` resumes same tmux) | ✅ done 2026-05-25 — see §5b; verified `multi_phase_e2e.py` (1 checkpoint + 1 final, 28s, 11 progress events) |
 | **5g** | Prune `AVAILABLE_TOOLS` catalog to executor + bounded-state-query set (10 tools, 11 actions); keep adapter code for regression safety | ✅ done 2026-05-25 |
+| **5h** | **3-button card contract** (Approve / Modify / Kill). Server enforces; client renders exactly 3; classifier maps free-text feedback to same outcomes. | ✅ done 2026-05-26 |
+| **5i** | **Modify-on-FINAL resume**: when user clicks Modify on an agent FINAL card (after tmux killed at end_turn), spawn fresh tmux with `claude --resume <prior_cc_session_id>` so CC rehydrates its prior research. Revised draft in ~10-15s vs full re-research. Deterministic seek via user-message marker. | ✅ done 2026-05-26 |
+| **5j** | **Twin v2**: 4-slot layout (`identity.md` / `people/core/<slug>.md` / `receipts/<date>.md` / `.claude/skills/<name>/SKILL.md`); minimal frontmatter; placeholders removed; `~/constellation/twin/README.md` is the contract agents read before writing; legacy `skills/` migrated/deleted; `_system/confirm-policies.md` is Cortex runtime config (moved out of skills/). | ✅ done 2026-05-26 |
+| **5k** | **Auto-distiller** ([cortex.distiller.Distiller](../../Code/Projects/Constellation-Server/cortex/cortex/distiller.py)): background process triggered after Modify decisions accumulate (`DISTILL_MIN_MODIFIES=2`, `DISTILL_COOLDOWN=30min`). Reads recent learning queue entries, dispatches CC agent with custom distillation brief, surfaces preview_action card only when stable pattern emerges. Untested at scale (Phase-7 work). | ⚠️ wired 2026-05-26, dogfooding next |
 
 **All Phase 5 sub-phases landed.** Implementation lives across two repos:
-- `Constellation-Server`: cortex/{classifier,server,router,http,agent_brief}.py +
+- `Constellation-Server`: cortex/{classifier,server,router,http,agent_brief,distiller,sessions}.py +
   tool-agent/tool_agent/adapters/claude_code.py
-- `Constellation-Console`: web/edge HUD progress ticker + preview card rendering
+- `Constellation-Console`: web/edge HUD progress ticker + preview card rendering + Sessions / Claude Code archive UI
 
-What's next: see [HANDOFF.md §4](HANDOFF.md) + [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md) for forward-looking items.
+What's next: see [TODO.md](TODO.md) for the P0/P1/P2 roadmap. **Before any architecture refactor, read [ARCHITECTURE-REFLECTION.md](ARCHITECTURE-REFLECTION.md)** for honest critique of what's brittle / over-engineered.
 
 ---
 
