@@ -638,7 +638,7 @@ Phase 2/3a 收尾后 Zack 在 v0.5 multi-step + 12-adapter 路径上做了几次
 
 1. **CXR-L SDK 是手机端 SDK，不是眼镜端**. v1.0.1 官方文档（`developerdoc.rokid.com/sdk`，2026-05-07）首句明示 "CXR-L SDK 运行在手机端". 我们的 `Constellation-Glass` 目标是装在眼镜上的 HUD app，应走 **裸机 (bare-metal)** 路径 —— 直接装到眼镜 Android Go 系统上，不通过 Rokid AI App 桥接.
 2. **InstructSdk 依赖 Sprite 语音助手长开**. 官方 doc: "指令触发需要用户打开眼镜设备'设置'中'语音助手激活'开关". 这与"能效是项目第一指标"的新约束冲突.
-3. **R08 物理输入完全暴露**. `reference/rokid-glass/bare-metal-docs/01-key-events.md`: 系统以 `ACTION_SPRITE_BUTTON_*` + `ACTION_TWO_FINGER_*` 有序广播形式投递按键事件，`BroadcastReceiver` 可在 Service 里直接接，无需 Activity 在前台. 物理键覆盖所有交互需求.
+3. **Rokid Glasses 物理输入完全暴露**. `reference/rokid-glass/bare-metal-docs/01-key-events.md`: 系统以 `ACTION_SPRITE_BUTTON_*` + `ACTION_TWO_FINGER_*` 有序广播形式投递按键事件，`BroadcastReceiver` 可在 Service 里直接接，无需 Activity 在前台. 物理键覆盖所有交互需求.
 
 ### 新约束（追加到 §8）
 
@@ -678,7 +678,7 @@ Phase 2/3a 收尾后 Zack 在 v0.5 multi-step + 12-adapter 路径上做了几次
 
 - **OQ-R7-1**: GlassAudioCapture 8 通道 deinterleave 是否过滤 noise 足够好，还是需要在 cortex 端再叠一层 RNN-NS? 等真机 + 真实环境测.
 - **OQ-R7-2**: GlassHudActivity 用 Android View 而非 Compose（Go 内存约束）. 字号 / 行距 / wrap-chars 都需要真机调（当前 `cardBodyWrapChars=28` 是估值）.
-- **OQ-R7-3**: 双击系统返回会 finishAffinity 退到 launcher 还是仅 finish current Activity? 真机验. 取决于 R08 系统的 KEYCODE_BACK 默认行为.
+- **OQ-R7-3**: 双击系统返回会 finishAffinity 退到 launcher 还是仅 finish current Activity? 真机验. 取决于 Rokid Glasses 系统的 KEYCODE_BACK 默认行为.
 - **OQ-R7-4**: 物理键单击在 IDLE 时直接 startListening — 但 streamId 是 fresh `fresh_<ts>`，cortex 侧需要 audio_end 后做 fresh user_invoke 而不是 modify decision. 当前 cortex code 已经做了此分支（`audio_end.intent="fresh"`），但路径没真机端到端测.
 - **OQ-R7-5**: 屏幕 480×640 portrait, 但 GlassHudActivity 用了 Theme.Constellation.Hud 透明全屏. 实际渲染像素映射到 JBD4020 micro-LED panel 是 1:1 还是有 scale? 需要真机测.
 

@@ -383,13 +383,13 @@ Keep the plugin layer **self-contained** in `:app/plugin/` so it can later be ex
 
 ## 10. Halo Ring documentation changes (required)
 
-Update these files in `R08-dev/Doc/`:
+Update these files in `Halo-Ring/Doc/` (the OSS project; not the older `R08-dev/Doc/` which is being deprecated):
 
 1. **`ui-mockup.html`** — add the EXTERNAL APPS group to the Action Picker mockup (§2 "Settings root" frame and §3 "Action Picker" frame); add the External plugins settings entry to the Settings list (§2 "SETTINGS tab — configuration root" frame, where the 10 sections live)
 2. **`08-ui-design.md`** — document the new EXTERNAL APPS group rendering, the External plugins settings screen, and how pushed profiles affect the focus indicator (no change to indicator itself)
 3. **`05-interaction-design.md`** — add a section on "External plugin actions" describing how a plugin action is treated identically to a built-in action from the wearer's perspective, plus a paragraph on the optional profile push/pop mechanism
 4. **`17-community-protocol-spec.md`** — promote this protocol document into Halo Ring's own protocol spec set (alongside the BLE protocol), so plugin authors have one canonical place to read
-5. Add a new file: **`Doc/18-plugin-protocol.md`** — the full protocol spec (copy of this document, adapted to Halo Ring's house style + voice)
+5. Add a new file: **`Doc/18-plugin-protocol.md`** — the full protocol spec (copy of this document, adapted to Halo Ring's house style + voice). NOTE: this file already exists in `Halo-Ring/Doc/18-plugin-protocol.md` — verify and reconcile.
 
 ---
 

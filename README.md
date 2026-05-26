@@ -1,7 +1,7 @@
 # Constellation · 星座
 
 > *A constellation of senses, one mind.* / 「万象皆星，一念至此」
-> by Zack 紫意 · companion to [Halo Ring](~/Code/Projects/R08-dev/)
+> by Zack 紫意 · companion to [Halo Ring](~/Code/Projects/Halo-Ring/) (the smart-ring controller; code-named R08, dev area at `~/Code/Projects/R08-dev/`)
 
 A personal AI framework that lives on your Mac mini, takes intent from a constellation of
 wearable sensors (AR glasses primary, Halo Ring + future devices), routes work through your
@@ -40,7 +40,7 @@ Repo layout (post-2026-05-26 reorg): top-level entry points (`README.md`, `HANDO
 
 ### Glass client (Phase 3b — in progress 🔥)
 - [GLASS-CLIENT-DESIGN.md](docs/glass/GLASS-CLIENT-DESIGN.md) v2.1 — bare-metal Android Go app design (supersedes the older CXR-L bridge plan).
-- [GLASS-SDK-REFERENCE.md](docs/glass/GLASS-SDK-REFERENCE.md) — **R08 SDK 速查**（audio / keys / display / FGS / 不用的 SDK + 真机验证清单）；写代码时先翻这个，不必每次回 `reference/` 翻原始 doc。
+- [GLASS-SDK-REFERENCE.md](docs/glass/GLASS-SDK-REFERENCE.md) — **Rokid Glasses SDK 速查**（audio / keys / display / FGS / 不用的 SDK + 真机验证清单）；写代码时先翻这个，不必每次回 `reference/` 翻原始 doc。
 - [MIGRATION-PLAN.md](docs/glass/MIGRATION-PLAN.md) — v2.0 → v2.1 migration steps + verification checklist.
 - [UI-UX.md](docs/glass/UI-UX.md) — HUD design + visual language (v2.1 annotations applied).
 - [reference/INDEX.md](reference/INDEX.md) — raw SDK / 文档源码（Rokid + whisper + Halo Ring）；GLASS-SDK-REFERENCE 是它的"工作答疑层"。
@@ -81,9 +81,16 @@ Detailed status: [HANDOFF.md §1](HANDOFF.md) + [TODO.md](TODO.md) + [SOURCE-OF-
 
 | What | Where |
 |---|---|
-| This repo | `~/Code/Projects/Constellation/` |
-| Twin (after seed) | `~/constellation/twin/` |
-| Halo Ring (sibling project) | `~/Code/Projects/R08-dev/` |
+| This repo (design + docs) | `~/Code/Projects/Constellation/` |
+| Server (Cortex + Tool Agent) | `~/Code/Projects/Constellation-Server/` |
+| Console (Web HUD + Edge proxy) | `~/Code/Projects/Constellation-Console/` |
+| Glass client (Rokid Glasses app) | `~/Code/Projects/Constellation-Glass/` |
+| Twin (after install seed) | `~/constellation/twin/` |
+| Halo Ring (sibling OSS project) | `~/Code/Projects/Halo-Ring/` |
+| Halo Ring dev area (R&D, internal) | `~/Code/Projects/R08-dev/` |
+
+> **Naming note**: "Rokid Glasses" = the eyewear we deploy to. "Halo Ring" = the companion smart ring (code-named R08).
+> Older docs occasionally call the eyewear "R08" — that's a stale alias; the proper name is **Rokid Glasses 2**.
 
 ## License / open-source
 

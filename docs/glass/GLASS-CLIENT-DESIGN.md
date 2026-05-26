@@ -1,7 +1,9 @@
 # Glass Client — Design v2.1 (Phase 3b · 裸机重设计)
 
 **Status**: design **PIVOTED** (Zack 2026-05-26) — supersedes v2.0
-**Target hardware**: Rokid Glasses 2 (R08-series; JBD4020 monochrome-green micro-LED right-eye 480×640 panel; YodaOS-Sprite based on Android Go / Android 12 / Qualcomm + NXP RT600 DSP)
+**Target hardware**: Rokid Glasses 2 (JBD4020 monochrome-green micro-LED right-eye 480×640 panel; YodaOS-Sprite based on Android Go / Android 12 / Qualcomm 8250 + NXP RT600 DSP)
+
+> 术语：本文档全程用 **Rokid Glasses** 指眼镜本体。R08 是配套智能戒指 ([Halo Ring](../../../Halo-Ring/)) 的代号，不是眼镜代号。Older "R08-series" / "R08-gen" wording in early drafts of this doc was wrong; corrected 2026-05-26.
 **Companion devices**: Halo Ring (**optional** — adds ring gesture input when paired; system works without it because the temple touchpad+buttons handle all interactions)
 **Companion server**: existing `wss://edge.example.com/ws/glass` on Linux Edge → Cortex on Mac mini (Tailscale-routed). Glasses connect to the **public TLS endpoint** over Wi-Fi.
 **Path**: **裸机开发**（standard Android Go app installed directly on the glass）— NOT CXR-L
@@ -11,7 +13,7 @@
 >
 > Sources consulted for this revision (all in `reference/` now):
 > - `reference/rokid-glass/bare-metal-docs/` — 裸机开发 official docs (captured 2026-05-26 via chrome-mcp from `custom.rokid.com` SPA)
-> - `reference/rokid-glass/glass2-docs/` — Rokid Glasses 2 (R08-gen) official GitHub docs
+> - `reference/rokid-glass/glass2-docs/` — Rokid Glasses 2 official GitHub docs
 > - `reference/rokid-glass/cxrl-sample-android/` — CXR-L v1.0.1 sample (for cross-reference)
 > - `reference/rokid-glass/rokid-docs-buildwithfenna/yodaos/docs/` — reverse-engineered YodaOS hardware docs (audio, display, thermal, speech)
 > - `reference/whisper/whisper.cpp/` — whisper.cpp source (for STT)
@@ -164,7 +166,7 @@ val rec = AudioRecord.Builder()
 ## 3. 架构（v2.1）
 
 ```
-┌──────────── Rokid Glasses (R08, YodaOS-Sprite / Android Go) ────────────┐
+┌──────────── Rokid Glasses (YodaOS-Sprite / Android Go) ────────────────┐
 │                                                                          │
 │  ConstellationService (ForegroundService, type=microphone|connectedDevice)│
 │  ├── HudActivity (transparent fullscreen, started/stopped by service)    │
@@ -392,7 +394,7 @@ interface HudPlatformAdapter {
 |---|---|---|
 | 2026-05-26 | v2.1 全面切裸机路径 | CXR-L 实际运行在手机端，跟我们眼镜端 HUD 目标不符；裸机更简单更节能更标准 |
 | 2026-05-26 | 不用 InstructSdk | 需要 Sprite 长期监听，与能效第一冲突 |
-| 2026-05-26 | 物理键为主输入 | R08 提供完整的 BroadcastReceiver 按键路径，Service 即可接收 |
+| 2026-05-26 | 物理键为主输入 | Rokid Glasses 提供完整的 BroadcastReceiver 按键路径，Service 即可接收 |
 | 2026-05-26 | 屏幕 480×640 portrait | 官方裸机文档明确数值 |
 | 2026-05-26 | AudioRecord 8 通道 0x6000FC，取通道 0 | 官方裸机文档 + 利用硬件 iFlytek NR/AEC |
 | 2026-05-26 | Mic 15s hard cap | 能效兜底；用户主动确认结束 mic 是默认路径 |

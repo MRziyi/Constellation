@@ -442,7 +442,7 @@ git tag v2.0-final main  # 备份切点
 |---|---|
 | productFlavor 拆分破坏现有 build | 步骤 1 强制空 flavor 先 build 过 |
 | Compose 在 Android Go 上内存压力 | 步骤 4 用最简版本，避免动画 / 复杂 layout |
-| 系统按键广播在某些 R08 固件版本不存在 | 真机才能验，先记入风险，到 3b.5 真机 deploy 时验 |
+| 系统按键广播在某些 Rokid Glasses 固件版本不存在 | 真机才能验，先记入风险，到 3b.5 真机 deploy 时验 |
 | 0x6000FC channel mask 在某些音频策略下被拒 | 同上；fallback 用单声道（不利用 iFlytek 但能跑） |
 | HudActivity 跟系统其他 Activity 抢前台 | 单击按键时把 HudActivity 切回前台；double_click 让它回到 IDLE 让出前台 |
 

@@ -190,11 +190,11 @@ Not urgent but eventually annoying.
 **Status now**: Phase 3b Glass client (`Constellation-Glass` repo, branch
 `pivot/baremetal-v2.1`) is well underway. After getting most of v2.0 done
 (CXR-L bridge path) we discovered CXR-L is actually a phone-side SDK; the
-correct path is bare-metal Android Go directly on the R08 glass. Code
+correct path is bare-metal Android Go directly on the Rokid Glasses. Code
 was reworked into `glass` + `phoneDebug` product flavors with a clean
 `HudPlatformAdapter` abstraction. Both flavors compile; phoneDebug
 verifies the protocol on a regular phone (OnePlus 9). Real-device deploy
-on R08 is gated on getting a dev-cable (P1.5 in TODO.md).
+on the Glasses is gated on getting a dev-cable (P1.5 in TODO.md).
 
 The "abstraction creak" we were worried about (multi-client WSS protocol
 written for one client) actually paid off: the same Cortex code serves

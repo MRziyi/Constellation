@@ -1,6 +1,8 @@
-# Constellation-Glass — SDK 速查 (R08 裸机)
+# Constellation-Glass — Rokid Glasses 裸机 SDK 速查
 
-**Updated**: 2026-05-26 · **For**: Rokid Glasses (R08) · YodaOS-Sprite (Android Go, Android 12)
+**Updated**: 2026-05-26 · **For**: Rokid Glasses 2 (the eyewear) · YodaOS-Sprite (Android Go, Android 12)
+
+> **术语**：本文档全程用 "Rokid Glasses" 指眼镜本体。**R08 是配套智能戒指 [Halo Ring](../../../Halo-Ring/) 的代号**，不是眼镜代号——历史文档里偶有混淆，遇到 "R08 firmware" / "on R08" 当作 Rokid Glasses 读。`R08-dev/` 路径正确，那是戒指的 R&D 区。
 **Companion**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 (设计层) · [MIGRATION-PLAN.md](MIGRATION-PLAN.md) · [reference/INDEX.md](../../reference/INDEX.md) (源文档大图)
 
 > **目的**：把"为了写 Constellation-Glass 需要知道的 SDK 事实"集中在一篇，
@@ -14,7 +16,7 @@
 
 ## 0. 一句话
 
-R08 是 YodaOS-Sprite (Android Go base, Android 12)，**Qualcomm 8250 4 核** + **NXP RT600 DSP**。
+Rokid Glasses 是 YodaOS-Sprite (Android Go base, Android 12)，**Qualcomm 8250 4 核** + **NXP RT600 DSP**。
 屏 **480×640 竖屏 monochrome-green** (JBD4020 micro-LED)。
 4-mic 阵列 → iFlytek DSP → 8 通道 PCM 暴露给应用 (mask `0x6000FC`)。
 按键 + 触控板都走 `BroadcastReceiver`。
@@ -99,7 +101,7 @@ rec.startRecording()
 ### 2.7 真机待验
 
 - ❓ AudioRecord 开着但不 read() 的待机能耗 — 文档未给数据，需 1h idle 实测
-- ❓ `setChannelMask(0x6000FC)` 在我们手上的 R08 firmware build 是否被接受
+- ❓ `setChannelMask(0x6000FC)` 在我们手上的 Rokid Glasses firmware build 是否被接受
 
 → `reference/rokid-glass/bare-metal-docs/02-audio-recording.md`
 → `reference/rokid-glass/rokid-docs-buildwithfenna/yodaos/docs/hardware/audio.md`
@@ -263,7 +265,7 @@ startForeground(NOTIF_ID, n, FOREGROUND_SERVICE_TYPE_MICROPHONE or FOREGROUND_SE
 ### 6.1 链路
 
 ```
-R08 (glass)  ──HTTPS/WSS──►  Linux Edge (edge.example.com, DigitalOcean)
+Rokid Glasses  ──HTTPS/WSS──►  Linux Edge (edge.example.com, DigitalOcean)
                                       │
                                       └──Tailscale──►  Mac mini Cortex (<mac-host>:8888)
 ```
@@ -349,7 +351,7 @@ R08 (glass)  ──HTTPS/WSS──►  Linux Edge (edge.example.com, DigitalOcea
 | 音频 8 通道 + ChannelMask sample | `reference/rokid-glass/bare-metal-docs/02-audio-recording.md` |
 | Rokid SDK 总览页 | `reference/rokid-glass/bare-metal-docs/03-developerdoc-sdk-page.md` |
 | **为什么不用 CXR-L** | `reference/rokid-glass/bare-metal-docs/04-cxrl-vs-baremetal-decisive.md` |
-| Glass 2 (R08) 官方 SDK 文档 | `reference/rokid-glass/glass2-docs/zh/` |
+| Rokid Glasses 2 官方 SDK 文档 | `reference/rokid-glass/glass2-docs/zh/` |
 | YodaOS 硬件音频 (mic 阵列 / DSP) | `reference/rokid-glass/rokid-docs-buildwithfenna/yodaos/docs/hardware/audio.md` |
 | YodaOS 屏幕 + 热级表 | `.../yodaos/docs/hardware/display.md` |
 | YodaOS DSP + iFlytek + KWS | `.../yodaos/docs/platform/speech-sdk.md` |
