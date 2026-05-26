@@ -690,3 +690,81 @@ Phase 2/3a 收尾后 Zack 在 v0.5 multi-step + 12-adapter 路径上做了几次
 - **真机验证 phoneDebug 闭环**: protocol 层已验, 但物理按键路径要等真机.
 
 ---
+
+## Revision 8 — 2026-05-26 (EOD): Glass UI 框架 + 能效原则 + 协议 gap 修复
+
+**Status**: confirmed by Zack; code on branch `pivot/baremetal-v2.1` in `Constellation-Glass` (commits `63e2205` → `91622c6`, 8 commits over P1.6 + P1.6b).
+
+### 触发因素
+
+P1.6 (GlassHudActivity 视觉迭代) 进展中触发三件事被显式问 + 显式定:
+1. **UI 框架决策**: Views 还是 Compose? Halo Ring 已经全 Compose; @Preview 是 P1.5 真机到手前唯一可视化路径.
+2. **能效边缘条件**: AudioRecord 开着不读的 idle 功耗未知 — 若高需 eager close/reopen; 接受 ~200ms 冷启动延迟? 
+3. **若干小判断**: 户外 HBM 不支持是否做兜底? IMU 头部姿态做辅助唤醒?
+
+P1.6 端到端测试又触发 P1.6b 协议 gap 发现: Cortex 对 simple-path 信息响应发 `hud_show` Command, 但 glass-shaped 翻译只覆盖 insight, 不覆盖普通 info card —— 用户在 Thinking 状态卡死, 看不到结果.
+
+### 新约束（追加到 §8）
+
+| 编号 | 约束 | 用户原话依据 |
+|---|---|---|
+| **C-41** | **Glass HUD 渲染层 = Jetpack Compose + `AnnotatedString` per-run styling**. 共享 Composable 在 `app/src/main/.../hud/composables/`; `GlassHudActivity` 用 `setContent { AppStateHud(snap) }` 作 Compose host; `PhoneDebugHudSurface` 在 SYSTEM_ALERT_WINDOW 内同一 Composable + 4:3 simulator box. `HudSnapshot` 数据类提到 main/ 满足 C-40 (shared core 零 flavor 依赖). 单色绿主题, 不引 Material3. | "Halo-Ring 已经全 Compose...沿用同一栈" + "先文档更新, 然后依次实现并依次深入测试". |
+| **C-42** | **AudioRecord 走 eager close/reopen 模式**. IDLE 时 AudioRecord **不**保持打开 (零 idle 功耗); CLICK 触发时新建 + start + read ≤15s + stop + release. 接受冷启动 ~200ms 延迟代价. | "不怕冷能启动, 能效最重要". |
+| **C-43** | **不做户外 HBM 兜底, 不集成 IMU**. JBD4020 不支持 HBM = 强光下可读性靠用户自行调亮度 (设计层不开二级亮度策略). IMU 头部姿态作为辅助唤醒被拒 (能耗 + 漂移 + 用户头动作分类调参代价). 维持物理键 (C-38) 作为唯一主交互路径. | "完全不用考虑户外可读性, 亮度我会自己调. IMU 不用, 能效第一, IMU 太费电". |
+
+### 协议契约修正（影响 INTERFACE-CONTRACTS）
+
+Cortex 对 glass peer 的 frame 翻译表 (在 `_send_command()` 中) **新增一行**:
+
+| Legacy `Command.kind` | Glass-shaped output (when peer accepts) |
+|---|---|
+| `preview_action` | `card` (options 非空 → mic_open + approve/modify/kill 默认) |
+| `hud_show` (有 `_insight_kind` marker) | `insight` (TTL countdown, 无 buttons) |
+| **`hud_show` (无 marker, 之前漏)** | **`card` with `options=[]` (info-only, footer = "double-click to dismiss · auto-close")** |
+
+**Glass 侧**: `CardHud` composable 检测 `cardOptions.isEmpty()` 切换 footer 文案. 已添加 `@Preview` (5b) "Card — info only (no buttons)" 作为常驻验收页.
+
+详见 [INTERFACE-CONTRACTS](../server/INTERFACE-CONTRACTS.md) (P1.6b 已落地补丁) + `Constellation-Server` commit `83bba42` + `Constellation-Glass` commit `91622c6`.
+
+### Diff to existing constraints
+
+- **C-37**: 不变, 但 **C-42** 是 C-37 的具体实施细则 (eager close 是落地形态).
+- **C-38**: 不变.
+- **C-40**: 强化, **C-41** 是 C-40 在 HUD 层的具体形态 (共享 Composable + 各 flavor host).
+- **C-31 (3-button)**: 仅"actionable card"路径不变. 新增**info-only card 路径** (无 buttons), footer 退化为"double-click to dismiss · auto-close". 用户语义上不能 approve/modify/kill — 信息只读 + TTL 自闭.
+
+### Open Questions
+
+- **OQ-R8-1**: P1.6 在 OnePlus 9 (`854afb6b`) 上验过 Compose + simulator. 真机 Rokid Glasses 上 ComposeView 渲染性能能否撑 4Hz refresh? 内存占用增量是否可接受? 等 P1.5.
+- **OQ-R8-2**: C-42 eager close 模式下用户连续短促按键 (CLICK→CLICK 间隔 < 200ms) 是否需要 debounce 否则连续 AudioRecord allocate? 当前 StateMachine 单击进 Listening 后下一次 CLICK 直接 audio_end, 不会重新 allocate — 已自然 OK.
+- **OQ-R8-3**: 真机字号 / cardBodyWrapChars / densityDpi 校准 (P1.5).
+
+### 实施影响（本次会话落地）
+
+**新文档**:
+- `docs/glass/GLASS-SDK-REFERENCE.md` (R08 Rokid Glasses 裸机 SDK 速查; 含 audio mask / key broadcast 表 / display 热级表 / 真机验证清单).
+- `docs/glass/P1.6-COMPOSE-MIGRATION.md` (7-phase 实施 + 验证记录).
+
+**文档归类整理**:
+- 22 顶层 .md → `docs/{constitution,server,glass,cross-device,roadmap}/`. 删 .bak 备份. 修复 14 处 broken code refs.
+- R08 术语 sweep: 仅 2 处真正错引用 (P1.6-COMPOSE-MIGRATION.md:252 + COMPONENT-DESIGN.md:18). 大多数 R08 mention 是合法的 (ring 代号 + R08-dev/ 路径).
+
+**Constellation-Glass on branch `pivot/baremetal-v2.1`**:
+- P1.6 commits A–F: 加 Compose deps (Kotlin 2.0.20 Compose Compiler plugin path), `HudTheme.kt` 集中常量, `RunStyledText` + `AppStateHud` 6 个 state Composable + 8 `@Preview`, `GlassHudActivity` Compose 化 (净 -167 行), phoneDebug 升级为 Rokid Glasses simulator (`OverlayHostOwner` 给 SYSTEM_ALERT_WINDOW 内 ComposeView 提供 lifecycle owner).
+- P1.6b commit `91622c6`: `CardHud` 检测 `cardOptions.isEmpty()` 切换 footer.
+
+**Constellation-Server**:
+- `83bba42`: `_send_command` 对非 insight `hud_show` 翻译为 glass `card` with `options=[]`; `emit_card` 修复 truthiness bug (`options or [...]` 把 `[]` 当默认了, 改 `... if options is None else options`).
+- `8b37888`: 把 HANDOFF 已经记载但未提交的 whisper 模型路径迁移 (`/tmp` → `~/constellation/whisper-models`) 提交完毕.
+
+### 待办（推到下个 phase）
+
+- **P1.5 真机部署**: 仍等 Rokid 专用开发线. 真机到手后:
+  - 校 `HudTheme.kt` 各 sp/dp/wrapChars 数字
+  - 验 `setChannelMask(0x6000FC)` 在我们 firmware 上不被拒
+  - 测 AudioRecord eager close 模式实际能耗对比
+  - 测 ComposeView 在 Rokid Glasses 上的 attach / 内存
+  - 跑 [GLASS-SDK-REFERENCE §9](../glass/GLASS-SDK-REFERENCE.md) 的 10 项验证清单
+- **Cortex 协议层**: 完整列出 Cortex 还可能发但 Glass 不识的 frame kind, 看是否还有类似 P1.6b 的隐藏 gap.
+
+---
