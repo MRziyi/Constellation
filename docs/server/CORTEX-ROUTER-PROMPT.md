@@ -1,12 +1,12 @@
 # Cortex Router — GPT Prompt Design
 
 **Version**: v0.4 (frozen 2026-05-24); **Router role narrowed by [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md) §6 as of 2026-05-25**
-**Status**: 实现同步 — router.py SYSTEM_PROMPT 是 ground truth；本文档跟它对齐. **gpt-5.2 default + v0.4 density pass + Phase 5g catalog prune (50+ actions → 11) + diskcache via [llm_cache.py](cortex/cortex/llm_cache.py)**
-**关联文档**: [DESIGN.md](DESIGN.md) · **[AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md)** · [PROMPT-DESIGN-V2.md](PROMPT-DESIGN-V2.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [DATA-MODEL.md](DATA-MODEL.md) · [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md)
+**Status**: 实现同步 — router.py SYSTEM_PROMPT 是 ground truth；本文档跟它对齐. **gpt-5.2 default + v0.4 density pass + Phase 5g catalog prune (50+ actions → 11) + diskcache via [llm_cache.py](../../../Constellation-Server/cortex/cortex/llm_cache.py)**
+**关联文档**: [DESIGN.md](../constitution/DESIGN.md) · **[AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md)** · [PROMPT-DESIGN-V2.md](PROMPT-DESIGN-V2.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [DATA-MODEL.md](DATA-MODEL.md) · [SOURCE-OF-TRUTH.md](../constitution/SOURCE-OF-TRUTH.md)
 **Last updated**: 2026-05-25 (added V2 supersedes banner)
 
 > ⚠ **Reader pointer (2026-05-25)**: After Phase 5 v2 + Phase 5c + Phase 5g:
-> - **A new classifier runs ahead of the Router** ([`cortex/cortex/classifier.py`](../../Code/Projects/Constellation-Server/cortex/cortex/classifier.py)). One sub-second JSON call: `{complex: bool, why: str}`. `complex=true` → bypass Router entirely → `claude_code.agent` dispatch with brief from `cortex.agent_brief`. `complex=false` → existing v0.5 selector + Router planner path.
+> - **A new classifier runs ahead of the Router** ([`cortex/cortex/classifier.py`](../../../Constellation-Server/cortex/cortex/classifier.py)). One sub-second JSON call: `{complex: bool, why: str}`. `complex=true` → bypass Router entirely → `claude_code.agent` dispatch with brief from `cortex.agent_brief`. `complex=false` → existing v0.5 selector + Router planner path.
 > - **Router's job shrank to bounded single-call asks**. Catalog pruned from 11 tools / 50+ actions to **10 tools / 11 actions** (reminders.add, calendar.add_event/list_today, mail.send, fs.write, system_status.get, safari_state.current_tab, apple_shortcuts.run, imessage.send, echo, claude_code.agent). All composition / search / multi-step lives in the agent path now.
 > - **R-3 multi-step is deprecated** — `task_continues` machinery still exists in code for backward compat but the catalog can't really express asks that need it anymore. Multi-step happens in the agent path via the **multi-phase checkpoint pattern** ([V2 §5b](AGENT-ARCHITECTURE-V2.md)).
 > - **`result_format=draft`** is legacy. The SYSTEM_PROMPT no longer teaches it; the validator still permits it for backward compat.
@@ -15,7 +15,7 @@
 
 Cortex Router 是 Cortex Agent 的"决策核心"——每个 event 进 Event Bus 后，Router 调 GPT API 输出 **dispatch plan** (JSON)，Cortex 据此发 RPC 到 Tool Agent，最终结果渲染到 Glass HUD。
 
-这份文档是 **Router GPT prompt 的设计 ground truth**：system prompt + user prompt 模板 + few-shot examples。**v0.2 起，[cortex/cortex/router.py](cortex/cortex/router.py) 的 `SYSTEM_PROMPT` 是真正可执行的 source；本文档跟它语义同步**。
+这份文档是 **Router GPT prompt 的设计 ground truth**：system prompt + user prompt 模板 + few-shot examples。**v0.2 起，[cortex/cortex/router.py](../../../Constellation-Server/cortex/cortex/router.py) 的 `SYSTEM_PROMPT` 是真正可执行的 source；本文档跟它语义同步**。
 
 ---
 
@@ -260,7 +260,7 @@ v0.4 ≈ 12-15% additional reduction on top of v0.3, achieved by:
 
 See [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) for per-tool action contracts.
 
-### LLM caching ([llm_cache.py](cortex/cortex/llm_cache.py))
+### LLM caching ([llm_cache.py](../../../Constellation-Server/cortex/cortex/llm_cache.py))
 
 All Router LLM calls go through `cached_chat_create()` which:
 - diskcache backed at `~/constellation/cache/llm/` (persists across daemon restarts)
@@ -531,7 +531,7 @@ All fallbacks are logged (`router.failed` / `task.max_rounds_reached`) for later
 
 - **Version**: v0.3
 - **Last updated**: 2026-05-24
-- **Based on**: [router.py SYSTEM_PROMPT](cortex/cortex/router.py) (live ground truth) + [llm_cache.py](cortex/cortex/llm_cache.py) + Zack's prompt-organization + token-efficiency directives (2026-05-24)
+- **Based on**: [router.py SYSTEM_PROMPT](../../../Constellation-Server/cortex/cortex/router.py) (live ground truth) + [llm_cache.py](../../../Constellation-Server/cortex/cortex/llm_cache.py) + Zack's prompt-organization + token-efficiency directives (2026-05-24)
 - **Companion**: [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) for per-tool contracts; [COMPONENT-DESIGN.md §1.2-1.4](COMPONENT-DESIGN.md) for how plans flow into Cortex
 
 ### Revision Log
@@ -541,7 +541,7 @@ All fallbacks are logged (`router.failed` / `task.max_rounds_reached`) for later
 | v0.1 | First version: system prompt + user prompt template + 7 few-shot examples (UC1/UC2/UC3 + reverse-wake + face + trivial) |
 | v0.2 | Sync with router.py SYSTEM_PROMPT (live since Phase 2/R-3 landing). Major additions: result_format semantics block; ISO date discipline; contact lookup from people/core frontmatter; **§1.1 MULTI-STEP TASK PATTERN** (task_continues / next_step_hint per SoT C-20); **§1.2 FREE-FORM FEEDBACK INTERPRETATION** (4 categories a/b/c/d per SoT C-23); **§1.3 HUD BODY DESIGN** (cards are info+yield not yes/no per SoT C-21). User prompt template adds PRIOR TASK HISTORY + USER FEEDBACK blocks. AVAILABLE TOOLS list updated to 12 enabled adapters. Examples 2-4 added for multi-step. Prompt budget updated with multi-step overhead. v0.1 examples 5 (reverse-wake) clarified: Cortex builds tool_card directly, Router not invoked. Implementation runs **zero-shot** at GPT-5.4 quality — few-shots in this doc are documentation, not in the actual prompt. |
 | v0.3 | **gpt-5.4 → gpt-5.2 default + token-efficient natural-language user prompt + diskcache layer**. §1 system prompt slimmed (terser directives, condensed sections); allow reasoning preamble + JSON in ```json``` fence (no `response_format=json_object` forcing); `parse_json_response` extracts fence + falls back to `json_repair`. §2 user prompt rewritten as **THE ASK / WHAT HAPPENED ALREADY / ZACK'S WORDS ON THE PRIOR CARD / ZACK'S DIGITAL TWIN / YOUR TOOLS / YOUR JOB** — no event IDs, no timestamps, no JSON dumps of payload. `task_history` rendered as one-line subtask summaries via `_summarise_subtask_for_history` (was full JSON dumps). New §"LLM caching" — all calls go through `cached_chat_create` (diskcache at `~/constellation/cache/llm/` + 3-retry exponential backoff + telemetry observer). Twin_query adapter also routes through the shared cache. **Per-call token usage cut ~25% measured.** v0.2 examples remain illustrative; nothing functionally renamed. |
-| v0.4 | **Density pass — same coverage, ~30% shorter system prompt + tools block + user prompt.** Driven by Zack's read of v0.3 ("信息密度高，不啰嗦"). Edits all in [router.py](cortex/cortex/router.py); zero schema / behaviour change; multistep_deep + uc1_wallclock semantics preserved. Specific cuts: ① SYSTEM_PROMPT: dropped standalone `ROLE` paragraph (folded into opening line); compressed `PRIMARY DIRECTIVES` → `RULES` (parens, "Cortex enforces it" implementation detail removed); merged the post-schema "you may think briefly…" paragraph into the OUTPUT line; cut `"HUD body renders BEFORE the user taps SEND…"` (implementation note that doesn't affect routing); RESULT_FORMAT entry for `draft` now self-describes which tools have draft semantics (was repeated as a separate sentence). ② AVAILABLE_TOOLS: per-tool descriptions trimmed to routing-relevant semantics. Mail's 7-line description compressed to 5 while preserving REPLY-vs-COMPOSE rules + account list; claude_code's 11-line description compressed to 6 while preserving Track A vs B split; removed "use BEFORE dispatching claude_code" / "等等" example bloat. ③ `_build_user_prompt`: `"Zack just spoke to his glasses. He said:"` → `"Zack said:"`; never emit `"No photo attached."` (no signal); compressed `WHAT HAPPENED ALREADY` to `(planning round N/5)` with `R1 — "..."` per round; dropped Twin block preamble (`"Identity, skills, and core contacts. Honor them when planning:"`); shortened YOUR JOB to one sentence. From single-shot 4.9 K → 3.5 K chars; system prompt 5.3 K → 3.6 K chars. |
+| v0.4 | **Density pass — same coverage, ~30% shorter system prompt + tools block + user prompt.** Driven by Zack's read of v0.3 ("信息密度高，不啰嗦"). Edits all in [router.py](../../../Constellation-Server/cortex/cortex/router.py); zero schema / behaviour change; multistep_deep + uc1_wallclock semantics preserved. Specific cuts: ① SYSTEM_PROMPT: dropped standalone `ROLE` paragraph (folded into opening line); compressed `PRIMARY DIRECTIVES` → `RULES` (parens, "Cortex enforces it" implementation detail removed); merged the post-schema "you may think briefly…" paragraph into the OUTPUT line; cut `"HUD body renders BEFORE the user taps SEND…"` (implementation note that doesn't affect routing); RESULT_FORMAT entry for `draft` now self-describes which tools have draft semantics (was repeated as a separate sentence). ② AVAILABLE_TOOLS: per-tool descriptions trimmed to routing-relevant semantics. Mail's 7-line description compressed to 5 while preserving REPLY-vs-COMPOSE rules + account list; claude_code's 11-line description compressed to 6 while preserving Track A vs B split; removed "use BEFORE dispatching claude_code" / "等等" example bloat. ③ `_build_user_prompt`: `"Zack just spoke to his glasses. He said:"` → `"Zack said:"`; never emit `"No photo attached."` (no signal); compressed `WHAT HAPPENED ALREADY` to `(planning round N/5)` with `R1 — "..."` per round; dropped Twin block preamble (`"Identity, skills, and core contacts. Honor them when planning:"`); shortened YOUR JOB to one sentence. From single-shot 4.9 K → 3.5 K chars; system prompt 5.3 K → 3.6 K chars. |
 
 ### Known Router Quality Notes (Post-v0.3 testing)
 

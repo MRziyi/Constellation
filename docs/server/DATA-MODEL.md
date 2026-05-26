@@ -2,7 +2,7 @@
 
 **Version**: v0.2
 **Status**: 设计阶段 → 实现同步 (step receipt format + people/core 实施 + eager-load context_pack 现状)
-**关联文档**: [DESIGN.md](DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md)
+**关联文档**: [DESIGN.md](../constitution/DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [SOURCE-OF-TRUTH.md](../constitution/SOURCE-OF-TRUTH.md)
 **Last updated**: 2026-05-24
 
 本文档定义 Digital Twin 的详细数据模型。Twin 是 Constellation 的核心承载（P1 + P5 + P6 共同基底），SoT C-7 锁定"markdown + skill-style，让大模型按需自索引"。本文件聚焦 Twin 长什么样、怎么写、怎么读、怎么演化。
@@ -657,7 +657,7 @@ memories/faces/{person-slug}/
 - **Version**: v0.2
 - **Last updated**: 2026-05-24
 - **Based on**: v0.1 spec + Phase 2 实现实际行为 (eager-load context_pack + step receipts for multi-step)
-- **Companion**: [DESIGN.md](DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md)
+- **Companion**: [DESIGN.md](../constitution/DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md)
 - **Next**: Phase 7 — revive `_system/TOC.md` for two-pass context_pack; promote eager-load to fallback; add `[summary]` receipt for multi-step tasks
 
 ### Revision Log

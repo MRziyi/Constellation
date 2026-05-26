@@ -5,8 +5,8 @@ written AFTER multiple rounds of building + dogfooding. Not cheerleading. The
 goal is to call out what's brittle, what's unnecessary, what should be torn
 down, so the next phase isn't blinded by the existing implementation.
 
-Use this alongside [HANDOFF.md](HANDOFF.md) and
-[IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md).
+Use this alongside [HANDOFF.md](../../HANDOFF.md) and
+[IMPLEMENTATION-PLAN.md](../roadmap/IMPLEMENTATION-PLAN.md).
 
 ---
 
@@ -256,7 +256,7 @@ These are bigger calls; flagged for discussion before action:
 ## Distiller — just built, untested at scale
 
 The auto-distiller was added in this conversation
-([cortex.distiller.Distiller](cortex/cortex/distiller.py)). It's wired
+([cortex.distiller.Distiller](../../../Constellation-Server/cortex/cortex/distiller.py)). It's wired
 into the Modify decision path; triggers when ≥ 2 unprocessed Modifies
 have accumulated AND cooldown (30 min) has passed. Runs in background;
 surfaces a preview_action card only when it finds a non-trivial pattern.

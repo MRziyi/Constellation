@@ -520,7 +520,7 @@ If anything below blocks implementation, surface to Zack before deciding:
 - **Version**: v0.1
 - **Date**: 2026-05-23
 - **Author**: Constellation team (Zack), with assistance
-- **Companion**: [Constellation/Doc/ui-mockup.html](Doc/ui-mockup.html), [Constellation/UI-UX.md](UI-UX.md)
+- **Companion**: [Constellation/Doc/ui-mockup.html](../../Doc/ui-mockup.html), [Constellation/UI-UX.md](../glass/UI-UX.md)
 - **For**: Halo Ring agent
 - **Next**: Halo Ring agent implements + reports back. Iteration via the two project repos.
 

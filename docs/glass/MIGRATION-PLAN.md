@@ -1,7 +1,7 @@
 # MIGRATION-PLAN — Constellation-Glass v2.0 → v2.1 (裸机)
 
 **Status**: planning (2026-05-26)
-**Companion docs**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 · [reference/INDEX.md](reference/INDEX.md)
+**Companion docs**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 · [reference/INDEX.md](../../reference/INDEX.md)
 **Scope**: 把现有 `Constellation-Glass` 仓库从"CXR-L 桥接路径"重构为"裸机直装路径"，同时引入 `glass` / `phoneDebug` 双 productFlavor 隔离
 
 ---

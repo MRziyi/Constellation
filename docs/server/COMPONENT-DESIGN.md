@@ -2,13 +2,13 @@
 
 **Version**: v0.3 (frozen 2026-05-24); **Cortex internals superseded by [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md) §2 as of 2026-05-25**
 **Status**: 设计阶段 → Phase 1+2 + R-3 + Phase 3a Web Console + Phase 5 v2 全部落地
-**关联文档**: [DESIGN.md](DESIGN.md) · **[AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md)** · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [DATA-MODEL.md](DATA-MODEL.md) · [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md)
+**关联文档**: [DESIGN.md](../constitution/DESIGN.md) · **[AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md)** · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [DATA-MODEL.md](DATA-MODEL.md) · [SOURCE-OF-TRUTH.md](../constitution/SOURCE-OF-TRUTH.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md)
 **Last updated**: 2026-05-25 (added V2 supersedes banner)
 
 > ⚠ **Reader pointer (2026-05-25)**: §1 below describes Cortex with Router-as-multi-step-planner. That model is historical. After Phase 5 v2:
-> - **Cortex.classifier** ([cortex/cortex/classifier.py](../../Code/Projects/Constellation-Server/cortex/cortex/classifier.py)) runs first; one bit decides simple vs complex.
+> - **Cortex.classifier** ([cortex/cortex/classifier.py](../../../Constellation-Server/cortex/cortex/classifier.py)) runs first; one bit decides simple vs complex.
 > - **Cortex.router** (planner pass) only sees a pruned **10-tool / 11-action** catalog; multi-step rounds (R-3) are deprecated — the agent path handles all multi-step now.
-> - **Cortex.agent_brief** ([cortex/cortex/agent_brief.py](../../Code/Projects/Constellation-Server/cortex/cortex/agent_brief.py)) assembles the brief that CC sees; v0.5 selector picks Twin slices to inline.
+> - **Cortex.agent_brief** ([cortex/cortex/agent_brief.py](../../../Constellation-Server/cortex/cortex/agent_brief.py)) assembles the brief that CC sees; v0.5 selector picks Twin slices to inline.
 > - **CortexServer._dispatch_complex_agent** is the shared dispatch path (used by both classifier-routed `user_invoke` and dev `/api/dev/agent_invoke`).
 > - **Multi-phase checkpoint orchestrator** (server-side) detects `{phase_done:true, next, ...}` from CC, surfaces ⏸ blocking card, dispatches `claude_code.agent_continue` on user reply.
 > - **Thinking heartbeat** (tool_agent-side, in `claude_code._tail_jsonl_until_idle_from`) emits `💭 still thinking…` every 8s of jsonl silence.

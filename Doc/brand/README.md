@@ -30,8 +30,8 @@
 | `c_line` | `#2A2A2A` | Dividers / card borders |
 | `c_focus_tint` | `#125EE08C` (7 % accent) | Tint over rows under focus |
 
-**No other color** may ship in user-visible chrome. Per [DESIGN.md §2](../../DESIGN.md) and
-[UI-UX.md §2](../../UI-UX.md): one green, no exceptions. The Constellation mark and Halo Ring's
+**No other color** may ship in user-visible chrome. Per [DESIGN.md §2](../../docs/constitution/DESIGN.md) and
+[UI-UX.md §2](../../docs/glass/UI-UX.md): one green, no exceptions. The Constellation mark and Halo Ring's
 mark share `c_accent` so the wearer sees them as siblings, not strangers — single brand language
 across both apps on the same glasses.
 

@@ -493,7 +493,7 @@ failure mode from "silent prose" to "honest partial actions[]".
 
 ## 6. Classifier — Cortex's only LLM call ahead of the planner
 
-**Landed 2026-05-25** as [`cortex/cortex/classifier.py`](../../Code/Projects/Constellation-Server/cortex/cortex/classifier.py). Simpler than the original design: one bit + a 15-word reason.
+**Landed 2026-05-25** as [`cortex/cortex/classifier.py`](../../../Constellation-Server/cortex/cortex/classifier.py). Simpler than the original design: one bit + a 15-word reason.
 
 ```
 SYSTEM:
@@ -559,7 +559,7 @@ escalate. Fail-closed to capability.
 | **5h** | **3-button card contract** (Approve / Modify / Kill). Server enforces; client renders exactly 3; classifier maps free-text feedback to same outcomes. | ✅ done 2026-05-26 |
 | **5i** | **Modify-on-FINAL resume**: when user clicks Modify on an agent FINAL card (after tmux killed at end_turn), spawn fresh tmux with `claude --resume <prior_cc_session_id>` so CC rehydrates its prior research. Revised draft in ~10-15s vs full re-research. Deterministic seek via user-message marker. | ✅ done 2026-05-26 |
 | **5j** | **Twin v2**: 4-slot layout (`identity.md` / `people/core/<slug>.md` / `receipts/<date>.md` / `.claude/skills/<name>/SKILL.md`); minimal frontmatter; placeholders removed; `~/constellation/twin/README.md` is the contract agents read before writing; legacy `skills/` migrated/deleted; `_system/confirm-policies.md` is Cortex runtime config (moved out of skills/). | ✅ done 2026-05-26 |
-| **5k** | **Auto-distiller** ([cortex.distiller.Distiller](../../Code/Projects/Constellation-Server/cortex/cortex/distiller.py)): background process triggered after Modify decisions accumulate (`DISTILL_MIN_MODIFIES=2`, `DISTILL_COOLDOWN=30min`). Reads recent learning queue entries, dispatches CC agent with custom distillation brief, surfaces preview_action card only when stable pattern emerges. End-to-end run on a real learning_queue identified a 3× correction pattern (reminders shouldn't carry notes section) and proposed updating `reminder-style/SKILL.md`. Soft `distiller_quiet` progress when no pattern emerges. `/api/dev/distill_now` for forced testing. | ✅ done 2026-05-26 |
+| **5k** | **Auto-distiller** ([cortex.distiller.Distiller](../../../Constellation-Server/cortex/cortex/distiller.py)): background process triggered after Modify decisions accumulate (`DISTILL_MIN_MODIFIES=2`, `DISTILL_COOLDOWN=30min`). Reads recent learning queue entries, dispatches CC agent with custom distillation brief, surfaces preview_action card only when stable pattern emerges. End-to-end run on a real learning_queue identified a 3× correction pattern (reminders shouldn't carry notes section) and proposed updating `reminder-style/SKILL.md`. Soft `distiller_quiet` progress when no pattern emerges. `/api/dev/distill_now` for forced testing. | ✅ done 2026-05-26 |
 | **5l** | **Long-lived CC per HUD session (P0.1)**: tmux is kept alive after FINAL (`keep_alive_on_final` flag). The next invoke in the same HUD session routes through `agent_continue` paste into the live TUI instead of spawning a fresh CC. **20.9s cold → 10.9s reuse (-47.7%).** 30-min TTL via `_active_hud_session_tmux` registry. Modify-on-FINAL prefers the live tmux too; `--resume` spawn is the TTL-expired fallback. | ✅ done 2026-05-26 |
 | **5m** | **R-3 multi-step machinery ripout (P1.1)**: deleted `_advance_task`, `task_history`, `task_continues`, `MAX_TASK_ROUNDS`, related helpers. Replaced with one-shot `_replan_with_feedback` for Modify-on-simple-path + `ResumeFailed` fallback. Multi-step is now strictly CC's job (via checkpoint pause / agent_continue). | ✅ done 2026-05-26 |
 | **5n** | **Per-session cost/latency rollup (P0.3)**: `current_session_id` ContextVar in `sessions.py`. LLM observer forwards calls to `sessions.append(kind="llm_call", ...)`. Index entries include `llm_latency_ms`, `llm_by_purpose`, `n_tool_uses`, `total_wallclock_ms`. Web Sessions list + detail surface the rollup. | ✅ done 2026-05-26 |
@@ -571,7 +571,7 @@ escalate. Fail-closed to capability.
   tool-agent/tool_agent/adapters/claude_code.py
 - `Constellation-Console`: web/edge HUD progress ticker + preview card rendering + Sessions / Claude Code archive UI
 
-What's next: see [TODO.md](TODO.md) for the P0/P1/P2 roadmap. **Before any architecture refactor, read [ARCHITECTURE-REFLECTION.md](ARCHITECTURE-REFLECTION.md)** for honest critique of what's brittle / over-engineered.
+What's next: see [TODO.md](../../TODO.md) for the P0/P1/P2 roadmap. **Before any architecture refactor, read [ARCHITECTURE-REFLECTION.md](../constitution/ARCHITECTURE-REFLECTION.md)** for honest critique of what's brittle / over-engineered.
 
 ---
 

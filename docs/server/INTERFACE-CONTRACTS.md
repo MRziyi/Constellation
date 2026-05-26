@@ -2,10 +2,10 @@
 
 **Version**: v0.6
 **Status**: 设计阶段 → 实现同步 (R-3 paradigm + reverse-wake event push 落地)
-**关联文档**: [DESIGN.md](DESIGN.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md)
+**关联文档**: [DESIGN.md](../constitution/DESIGN.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · [SOURCE-OF-TRUTH.md](../constitution/SOURCE-OF-TRUTH.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md)
 **Last updated**: 2026-05-24
 
-本文档定义 Constellation 各组件**之间**的 schema：消息、命令、RPC、Twin 文件约定、对外 API。所有 schema 从 SoT + 6 promises + [DESIGN.md §3](DESIGN.md) 架构 derive。
+本文档定义 Constellation 各组件**之间**的 schema：消息、命令、RPC、Twin 文件约定、对外 API。所有 schema 从 SoT + 6 promises + [DESIGN.md §3](../constitution/DESIGN.md) 架构 derive。
 
 ---
 
@@ -15,14 +15,14 @@
 |---|---|
 | **节能第一 (Glass)** | Glass 字段尽量少；不做内部状态判断；不生成 client-side ID；不携带可由 Cortex 推断的字段 |
 | **Hybrid 连接模式 (Glass ↔ Cortex)** | 用户活跃期 WSS 保持；idle 期关 WSS，靠 push notification 唤醒。详见 §1.6 |
-| ~~**Always-on mic per HUD card (R-3 / C-22)**~~ | **Superseded 2026-05-26 by C-37 / C-38 (v2.1 pivot).** Mic is now user-initiated only: single click of right-temple button starts Listening; 15s hard cap watchdog auto-stops. CARD → Modify still triggers server-initiated `mic_open` but only after the user long-presses to send Modify. See [GLASS-CLIENT-DESIGN.md v2.1 §1 + §3.2](GLASS-CLIENT-DESIGN.md). |
+| ~~**Always-on mic per HUD card (R-3 / C-22)**~~ | **Superseded 2026-05-26 by C-37 / C-38 (v2.1 pivot).** Mic is now user-initiated only: single click of right-temple button starts Listening; 15s hard cap watchdog auto-stops. CARD → Modify still triggers server-initiated `mic_open` but only after the user long-presses to send Modify. See [GLASS-CLIENT-DESIGN.md v2.1 §1 + §3.2](../glass/GLASS-CLIENT-DESIGN.md). |
 | **Multi-step task chain (R-3 / C-20)** | Plan 可标 `task_continues=true` + `next_step_hint`；Cortex 端跨轮维护 `task_history` (in-memory)；Glass 端 unchanged — 看到的就是一系列 preview_action cards |
 | **JSON for messages, YAML for Twin frontmatter** | 消息走机器；Twin 走 vim |
 | **ID 由接收端分配** | Glass 上传不带 id；Cortex 收到后分配 `evt_*`。Cortex 下发 Command 时分配 `cmd_*`，Glass 端后续 `user_decision` 用 `in_reply_to=cmd_id` 关联 |
 | **未知字段忽略** | 向后兼容；schema 可演化不破坏 |
 | **side-effecting 必有 `requires_confirm`** | P3 在 schema 层强制 + Cortex 启动加载 `confirm-policies.md` 在 `_apply_confirm_policies` 强制 override (defense in depth, Q-9) |
 | **结合 Q-6（断网直接报错）** | Glass 端**无**本地 ACK / retry / 缓存机制 |
-| ~~**Cortex 输入永远 `{text, image?}` (R-1 / C-17)**~~ | **Superseded 2026-05-26 (Phase 3b.4).** Cortex now receives `audio_chunk` (b64 PCM) + `audio_end` events from Glass and runs `whisper-cli` server-side. Web HUD still sends text/image only. See [GLASS-CLIENT-DESIGN.md v2.1 §2.4](GLASS-CLIENT-DESIGN.md). |
+| ~~**Cortex 输入永远 `{text, image?}` (R-1 / C-17)**~~ | **Superseded 2026-05-26 (Phase 3b.4).** Cortex now receives `audio_chunk` (b64 PCM) + `audio_end` events from Glass and runs `whisper-cli` server-side. Web HUD still sends text/image only. See [GLASS-CLIENT-DESIGN.md v2.1 §2.4](../glass/GLASS-CLIENT-DESIGN.md). |
 
 ---
 
@@ -72,7 +72,7 @@
 
 - **Glass 不区分语音意图来源**（Ring tap / temple touch / voice keyword）—— 都是 Glass 内部的事
 - **每次 `user_invoke` 必带 image + text**：为了避免漏采视觉信息，Glass 触发时立刻抓快照（节能 vs 漏信息的 trade-off 选了不漏）
-- **两个 Global gesture 入口**（参 [Doc/ui-mockup.html §3](Doc/ui-mockup.html)）:
+- **两个 Global gesture 入口**（参 [Doc/ui-mockup.html §3](../../Doc/ui-mockup.html)）:
   - **Quick Shortcut**: `text` = 预置 prompt (来自 `twin/skills/shortcuts.md`)、`image` = 即刻拍照、不开麦
   - **Voice Invoke**: `text` = STT 实时转录、`image` = 即刻拍照、麦克风 + VAD-stop
 - Cortex 端 Vision 推理（OCR / 场景理解）用 GPT-4V；**人脸识别归 Tool Agent 本地模型**（v0.4 修订 OQ-C5）
@@ -229,7 +229,7 @@ When `task_continues: true`:
 
 ## 2.6 Internal: Agent Path Schemas (V2 — SoT C-24/C-25/C-27)
 
-When the classifier returns `{complex: true}`, Cortex bypasses §2.5 entirely and dispatches `claude_code.agent` with a brief from [`cortex.agent_brief.build_agent_brief`](../../Code/Projects/Constellation-Server/cortex/cortex/agent_brief.py). CC produces a final structured JSON conforming to:
+When the classifier returns `{complex: true}`, Cortex bypasses §2.5 entirely and dispatches `claude_code.agent` with a brief from [`cortex.agent_brief.build_agent_brief`](../../../Constellation-Server/cortex/cortex/agent_brief.py). CC produces a final structured JSON conforming to:
 
 ```json
 {
@@ -481,8 +481,8 @@ v1 token ↔ 标签是 **手工分配**（你自己发 token 时决定它对应�
 
 - **Version**: v0.6
 - **Last updated**: 2026-05-24
-- **Based on**: [DESIGN.md](DESIGN.md) §3 架构 + [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md) R-1/R-2/R-3 + 实现验证 (Phase 1+2 + multi-step deep test 3/3 PASS + real CC reverse-wake)
-- **Companion**: [DESIGN.md](DESIGN.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md)
+- **Based on**: [DESIGN.md](../constitution/DESIGN.md) §3 架构 + [SOURCE-OF-TRUTH.md](../constitution/SOURCE-OF-TRUTH.md) R-1/R-2/R-3 + 实现验证 (Phase 1+2 + multi-step deep test 3/3 PASS + real CC reverse-wake)
+- **Companion**: [DESIGN.md](../constitution/DESIGN.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md)
 
 ### Revision Log
 
@@ -491,7 +491,7 @@ v1 token ↔ 标签是 **手工分配**（你自己发 token 时决定它对应�
 | v0.2 | 首版（设计阶段）：Event/Command/RPC/Twin/MCP 5 套 schema；Glass 简化（砍 ID/device/手势）|
 | v0.3 | Event kinds 合并：`voice_text` + `photo` → `user_invoke` (image + text 一起带)；新增 §1.5 Hybrid Connection Model；明确 Vision 归 Cortex；OQ-S5 新增 push payload 问题 |
 | v0.4 | type `preference` → `skill`（Twin 是 "AI 怎么作为我做事" 的指令集）；新增 `identity`/`encounters`/`memory` 三个 type；type-specific 字段更新；详细 schema 移到 [DATA-MODEL.md](DATA-MODEL.md) |
-| v0.5 | `user_decision.decision` 取值从 `confirm/reject/dismiss` 改为 `send/feedback/dismiss`；feedback 类型自带 `feedback_text` (新一轮 STT)；新增 §1.5 Feedback Loop；§1.4 加入 Quick Shortcut + Voice Invoke 两个 global gesture 入口说明；配套 [Doc/ui-mockup.html](Doc/ui-mockup.html) v0.1 |
+| v0.5 | `user_decision.decision` 取值从 `confirm/reject/dismiss` 改为 `send/feedback/dismiss`；feedback 类型自带 `feedback_text` (新一轮 STT)；新增 §1.5 Feedback Loop；§1.4 加入 Quick Shortcut + Voice Invoke 两个 global gesture 入口说明；配套 [Doc/ui-mockup.html](../../Doc/ui-mockup.html) v0.1 |
 | v0.6 | **R-1 / R-2 / R-3 落地**: §0 加 always-on mic paradigm + multi-step task chain + C-17 (audio never raw) 原则；§1.5 重写 — feedback 不再是 opt-in mode，是 default voice channel；加 4 类 free-form feedback 分类 (a/b/c/d)；新增 §2.5 Internal Dispatch Plan schema (含 task_continues + next_step_hint)；§3 重写为"RPC + Event Push" — Cortex 持久 conn + demux reader; §3.3 reverse-wake 加 session_id + 3-option menu + wake_response_map 实现引用；§7 deferred list 加 audio raw / multi-step persistence / mail push 三项明确不做的事 |
 
 ---

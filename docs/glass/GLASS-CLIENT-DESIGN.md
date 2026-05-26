@@ -403,13 +403,13 @@ interface HudPlatformAdapter {
 
 ## 9. 上下文索引
 
-- 完整 SDK 与文档地图：[reference/INDEX.md](reference/INDEX.md)
+- 完整 SDK 与文档地图：[reference/INDEX.md](../../reference/INDEX.md)
 - 关键事实速查：
-  - 裸机概述：[reference/rokid-glass/bare-metal-docs/00-overview.md](reference/rokid-glass/bare-metal-docs/00-overview.md)
-  - 按键广播：[reference/rokid-glass/bare-metal-docs/01-key-events.md](reference/rokid-glass/bare-metal-docs/01-key-events.md)
-  - 音频管线：[reference/rokid-glass/bare-metal-docs/02-audio-recording.md](reference/rokid-glass/bare-metal-docs/02-audio-recording.md)
-  - 路径对比：[reference/rokid-glass/bare-metal-docs/04-cxrl-vs-baremetal-decisive.md](reference/rokid-glass/bare-metal-docs/04-cxrl-vs-baremetal-decisive.md)
-- v2.0 备份：[GLASS-CLIENT-DESIGN.v2.0.md.bak](GLASS-CLIENT-DESIGN.v2.0.md.bak)
+  - 裸机概述：[reference/rokid-glass/bare-metal-docs/00-overview.md](../../reference/rokid-glass/bare-metal-docs/00-overview.md)
+  - 按键广播：[reference/rokid-glass/bare-metal-docs/01-key-events.md](../../reference/rokid-glass/bare-metal-docs/01-key-events.md)
+  - 音频管线：[reference/rokid-glass/bare-metal-docs/02-audio-recording.md](../../reference/rokid-glass/bare-metal-docs/02-audio-recording.md)
+  - 路径对比：[reference/rokid-glass/bare-metal-docs/04-cxrl-vs-baremetal-decisive.md](../../reference/rokid-glass/bare-metal-docs/04-cxrl-vs-baremetal-decisive.md)
+- v2.0 备份：已删除（2026-05-26 doc reorg）；如需查看，`git log --all --source -- GLASS-CLIENT-DESIGN.v2.0.md.bak` 可恢复。v2.0→v2.1 差异见 [MIGRATION-PLAN.md](MIGRATION-PLAN.md)。
 
 ---
 

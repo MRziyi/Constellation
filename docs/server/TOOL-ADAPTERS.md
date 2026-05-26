@@ -5,7 +5,7 @@
 **关联文档**: **[AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md)** · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md)
 **Last updated**: 2026-05-25 (added Phase 5g supersedes banner)
 
-> ⚠ **Reader pointer (2026-05-25)**: This doc catalogs all **12 adapter implementations** that live in `tool-agent/tool_agent/adapters/`. After Phase 5g, only a **pruned subset** is visible to the planner ([`cortex.router.AVAILABLE_TOOLS`](../../Code/Projects/Constellation-Server/cortex/cortex/router.py)). The full adapter set is still loaded — used by:
+> ⚠ **Reader pointer (2026-05-25)**: This doc catalogs all **12 adapter implementations** that live in `tool-agent/tool_agent/adapters/`. After Phase 5g, only a **pruned subset** is visible to the planner ([`cortex.router.AVAILABLE_TOOLS`](../../../Constellation-Server/cortex/cortex/router.py)). The full adapter set is still loaded — used by:
 > 1. The **agent path** (Claude Code in tmux gets `--add-dir` access to Twin/projects and uses its own native tools — Bash, Read, etc. — for research; on completion the structured `actions[]` is mapped back to executor adapters by `cortex.server._action_to_subtask`).
 > 2. Direct `/api/dev/dispatch` calls (dev/test bypass).
 > 3. Regression safety — adapter code paths are still tested end-to-end.
@@ -78,7 +78,7 @@ Used for one-shot or session-resumed prompts that return text. Each call is a `c
 Defaults: `--permission-mode dontAsk`, `--max-budget-usd 0.50`, `--output-format json`, 5min timeout.
 
 #### `draft(prompt, working_dir?, add_dirs?, model?, max_budget_usd?, allowed_tools?, disallowed_tools?, timeout_s?) → DraftResult`
-One-shot prompt; CC may use its own tools (Read/Bash/Grep/WebFetch). Returns the final text. Per [SoT N-9](SOURCE-OF-TRUTH.md), this is the routing target for web/paper search intents (CC has WebFetch).
+One-shot prompt; CC may use its own tools (Read/Bash/Grep/WebFetch). Returns the final text. Per [SoT N-9](../constitution/SOURCE-OF-TRUTH.md), this is the routing target for web/paper search intents (CC has WebFetch).
 
 **Result**:
 ```json
@@ -541,7 +541,7 @@ Cortex's enabled-tool whitelist mirrors this set; see `server.py` `_tools_block,
 - **Version**: v0.2
 - **Last updated**: 2026-05-24
 - **Based on**: live `tool-agent/tool_agent/adapters/*.py` (12 adapters live + face placeholder) + verified flows from `test-harness/*.py`
-- **Companion**: [COMPONENT-DESIGN.md §2 Tool Agent](COMPONENT-DESIGN.md) for internals; [TOOL-IDEAS.md](TOOL-IDEAS.md) v0.2 for Zack-ratified roadmap of further adapters
+- **Companion**: [COMPONENT-DESIGN.md §2 Tool Agent](COMPONENT-DESIGN.md) for internals; [TOOL-IDEAS.md](../roadmap/TOOL-IDEAS.md) v0.2 for Zack-ratified roadmap of further adapters
 
 ### Revision Log
 

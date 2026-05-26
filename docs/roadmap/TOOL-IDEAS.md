@@ -2,7 +2,7 @@
 
 **Version**: v0.2 (ratified by Zack 2026-05-24)
 **Status**: brainstorm → triaged. v0.2 records Zack's accept/reject/reframe verdicts inline.
-**关联文档**: [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md) · [DESIGN.md](DESIGN.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [USE-CASE-AUDIT.md](USE-CASE-AUDIT.md)
+**关联文档**: [SOURCE-OF-TRUTH.md](../constitution/SOURCE-OF-TRUTH.md) · [DESIGN.md](../constitution/DESIGN.md) · [TOOL-ADAPTERS.md](../server/TOOL-ADAPTERS.md) · [USE-CASE-AUDIT.md](USE-CASE-AUDIT.md)
 
 ---
 
@@ -42,8 +42,8 @@ Skim this first. Detail in §1–§5 below.
 
 ## 0. Frame
 
-The v1 [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) catalog lists 6 adapters because those serve
-the three explicit Source-of-Truth use cases. But [SoT §4](SOURCE-OF-TRUTH.md) is emphatic:
+The v1 [TOOL-ADAPTERS.md](../server/TOOL-ADAPTERS.md) catalog lists 6 adapters because those serve
+the three explicit Source-of-Truth use cases. But [SoT §4](../constitution/SOURCE-OF-TRUTH.md) is emphatic:
 **the deliverable is a unified framework, not the use cases**. The use cases stress-test the
 framework; the framework should accommodate more.
 
@@ -72,10 +72,10 @@ bottom half: speculative or platform-dependent.
 | **T2** | `apple_notes` | Notes.app via AppleScript. Quick capture > Reminders for prose; aligns with Zack's "Drop a thought" Quick Shortcut. | low | 0.3 d | 2 |
 | **T3** | `web_search` | Tavily/Brave Search API. HCI researcher must look things up; Cortex needs this for "did anyone publish on X?" intents. | low | 0.5 d | 2-3 |
 | **T4** | `arxiv` | arxiv.org search + paper metadata + PDF fetch. Zack reads papers daily; Twin's `interests/` becomes alive when Cortex can match new arXiv → interests. | low | 0.5 d | 2-3 |
-| **T5** | `gh` | GitHub CLI wrapper. List/comment PRs+issues, fetch PR diffs. Pairs with [D1](DESIGN.md) reverse-wake ("Your PR got reviewed") and UC2 supervision style. | low | 0.5 d | 3 |
+| **T5** | `gh` | GitHub CLI wrapper. List/comment PRs+issues, fetch PR diffs. Pairs with [D1](../constitution/DESIGN.md) reverse-wake ("Your PR got reviewed") and UC2 supervision style. | low | 0.5 d | 3 |
 | **T6** | `system_status` | battery / focus_mode / current_app / network / time-of-day. Router uses for **routing decisions** (don't pulse in DND; prefer SMS over email if commuting). | low | 0.3 d | 2 |
 | **T7** | `apple_shortcuts` | Invoke any user-defined Apple Shortcut. **Massive leverage** — Zack's existing Shortcuts library becomes Cortex-callable for free. | low | 0.5 d | 2-3 |
-| **T8** | `twin_query` | Semantic grep over Twin (grep + LLM synthesis). [INTERFACE-CONTRACTS §5.1](INTERFACE-CONTRACTS.md) lists this for MCP; same engine should serve Cortex internally for [B2/B3](DESIGN.md). | med | 1 d | 3 |
+| **T8** | `twin_query` | Semantic grep over Twin (grep + LLM synthesis). [INTERFACE-CONTRACTS §5.1](../server/INTERFACE-CONTRACTS.md) lists this for MCP; same engine should serve Cortex internally for [B2/B3](../constitution/DESIGN.md). | med | 1 d | 3 |
 | T9 | `imessage` | iMessage read/send via Messages.app DB + AppleScript. Same shape as mail but more frequent traffic. | med (auth) | 1 d | 4 |
 | T10 | `safari_state` | Current tab / browsing history (last 24h) via Safari AppleScript + History DB. Lets "I want to save this page" voice intent work. | med | 1 d | 4 |
 | T11 | `whisper_local` | Whisper.cpp wrapper for ambient transcription. Enables UC3-D (parked) and B-class cool examples that need long-form audio. | med | 1-2 d | 5-6 |
@@ -88,7 +88,7 @@ bottom half: speculative or platform-dependent.
 | T18 | `linear` / `notion` | If Zack uses these for projects. Currently he uses Claude Code + repos directly, so deferred. | low | 0.5 d each | speculative |
 
 **Heuristic**: a tool earns its place if it (a) maps to a *concrete* moment in Zack's day,
-or (b) unlocks one of the ★ cool examples in [DESIGN §5](DESIGN.md). Tools that fit neither
+or (b) unlocks one of the ★ cool examples in [DESIGN §5](../constitution/DESIGN.md). Tools that fit neither
 are speculative.
 
 ---
@@ -113,7 +113,7 @@ papers on RL" — but that requires `arxiv` adapter. `web_search` is the broader
 ("did anyone study haptic feedback in waveguide displays?"). Zotero is the heavy version
 once paper management gets serious.
 
-Without these, [B1 "承诺履约监控" pulses](DESIGN.md#5) can fire but Cortex has nothing to
+Without these, [B1 "承诺履约监控" pulses](../constitution/DESIGN.md#5) can fire but Cortex has nothing to
 *surface that's actually new*. Twin becomes a static profile instead of a living signal.
 
 ### 2.3 Cross-app supervision (T5, T9, T10, T17)
@@ -123,7 +123,7 @@ mechanism can wake Zack for: GitHub PR comments arrived, iMessage from a `people
 contact, browser tab matched an `interests/` topic, OS notification queue piling up.
 Each is a small adapter; all share the reverse-wake infrastructure built for `claude_code`.
 
-This is where [Q-2 Insight Engine + simple LLM evaluation](DESIGN.md#4) earns its keep —
+This is where [Q-2 Insight Engine + simple LLM evaluation](../constitution/DESIGN.md#4) earns its keep —
 without diverse signal sources, the Insight Engine has nothing to evaluate.
 
 ### 2.4 Cortex's own self-knowledge (T6, T14, T15)
@@ -144,7 +144,7 @@ of exposing them as Cortex-callable tools is one adapter that runs `shortcuts ru
 <json>` and parses output. Suddenly the framework absorbs Zack's existing automation
 without rebuilding any of it.
 
-This is exactly the "**在已有工具栈之上加智能**" line from [identity.md](twin-seed/identity.md)
+This is exactly the "**在已有工具栈之上加智能**" line from [identity.md](../../../Constellation-Server/twin-seed/identity.md)
 made concrete.
 
 ### 2.6 Long-form audio (T11)
@@ -187,7 +187,7 @@ what to harden in the spine:
 | **TCC permission UX** | T2, T9, T10, T17 (Notes, Messages, Safari, NC) | Each new osascript-touching app re-prompts TCC. Document the list; consider a `./scripts/grant-tcc.sh` helper that pre-fires no-op queries to all needed apps. |
 | **Context-aware Router prompt** | T6 (system_status injected into USER STATE) | Currently `_build_user_prompt` injects `now` + `active_devices=[glass]` only. Add slots for focus_mode, location, battery — keep small to control prompt bloat. |
 | **Per-adapter token budgets** | T8, T11, T12 | LLM-calling adapters need quota; otherwise a runaway prompt blows the monthly $100 cap from the risk register. |
-| **Adapter capability filter by context** | All of them | When Twin grows to 30 adapters, dumping all into AVAILABLE TOOLS bloats every Router call. Pair with the [DATA-MODEL §11](DATA-MODEL.md) two-pass context_pack — first GPT picks tools + Twin slices to load, then second call dispatches. |
+| **Adapter capability filter by context** | All of them | When Twin grows to 30 adapters, dumping all into AVAILABLE TOOLS bloats every Router call. Pair with the [DATA-MODEL §11](../server/DATA-MODEL.md) two-pass context_pack — first GPT picks tools + Twin slices to load, then second call dispatches. |
 
 ---
 

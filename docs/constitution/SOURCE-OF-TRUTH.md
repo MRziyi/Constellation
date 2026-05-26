@@ -330,7 +330,7 @@ Mac mini 客户端 ───────┘    （Cortex 本身也跑在 Mac min
 
 ### 触发
 
-Phase 2 Slice C 收尾时，agent 写了 [TOOL-IDEAS.md](TOOL-IDEAS.md) v0.1，列了 18 个候选 adapter。Zack triage 时 explicit 拒绝了 T3 (`web_search`) / T4 (`arxiv`) / T11 (`whisper_local`) / T12 (`screenshot_ocr`)，并给出底层 framing 而非单点否决——这些 framing 上升到 SoT 级别。
+Phase 2 Slice C 收尾时，agent 写了 [TOOL-IDEAS.md](../roadmap/TOOL-IDEAS.md) v0.1，列了 18 个候选 adapter。Zack triage 时 explicit 拒绝了 T3 (`web_search`) / T4 (`arxiv`) / T11 (`whisper_local`) / T12 (`screenshot_ocr`)，并给出底层 framing 而非单点否决——这些 framing 上升到 SoT 级别。
 
 ### 新约束（追加到 [§8](#8-locked-constraints必须遵守的硬约束清单)）
 
@@ -353,9 +353,9 @@ Phase 2 Slice C 收尾时，agent 写了 [TOOL-IDEAS.md](TOOL-IDEAS.md) v0.1，�
 ### 影响范围
 
 - [DESIGN.md](DESIGN.md) §3.2 拓扑：Glass → Cortex 输入定义改 `{image, text}` 不变（已对的），但应该在 §2 执行边界加一行 "Cortex never receives audio"。
-- [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) §1.3 已经把 `user_invoke.payload` 定义为 `{image, text}` — 已经符合 C-17，无需改。
-- [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md): `claude_code` adapter 的 description 应该提一句 "use this when web search / paper search is needed" 让 Router 学到 N-9 的实现路径。
-- [TOOL-IDEAS.md](TOOL-IDEAS.md) v0.2 已经记录了 triage 结果。
+- [INTERFACE-CONTRACTS.md](../server/INTERFACE-CONTRACTS.md) §1.3 已经把 `user_invoke.payload` 定义为 `{image, text}` — 已经符合 C-17，无需改。
+- [TOOL-ADAPTERS.md](../server/TOOL-ADAPTERS.md): `claude_code` adapter 的 description 应该提一句 "use this when web search / paper search is needed" 让 Router 学到 N-9 的实现路径。
+- [TOOL-IDEAS.md](../roadmap/TOOL-IDEAS.md) v0.2 已经记录了 triage 结果。
 - 未来 Cool Examples Library 里如果出现 audio-driven 用例 ([DESIGN.md §5 B 类的 transcript 相关](DESIGN.md))，必须改写为"STT 在客户端完成后投递文本"。
 
 ### Diff to existing constraints
@@ -390,8 +390,8 @@ Phase 2 Slice C 完成 mail/calendar/fs/notes/system_status/shortcuts/twin_query
 
 ### 实施影响（已落地）
 
-- [tool-agent/tool_agent/adapters/applescript_mail.py](tool-agent/tool_agent/adapters/applescript_mail.py) v2 加 `account` arg（resolve via `_resolve_account_address`）、加 `find_messages(participant?, subject_contains?, body_contains?, account?, mailbox?, limit?)` 用 AppleScript `whose` clause、加 `send(reply_to_message_id=…)` 模式。
-- [cortex/cortex/router.py](cortex/cortex/router.py) `AVAILABLE_TOOLS["applescript_mail"]` description 改写为三段式 (REPLY / COMPOSE / SEARCH)，让 Router GPT 学会三种意图的映射。
+- [tool-agent/tool_agent/adapters/applescript_mail.py](../../../Constellation-Server/tool-agent/tool_agent/adapters/applescript_mail.py) v2 加 `account` arg（resolve via `_resolve_account_address`）、加 `find_messages(participant?, subject_contains?, body_contains?, account?, mailbox?, limit?)` 用 AppleScript `whose` clause、加 `send(reply_to_message_id=…)` 模式。
+- [cortex/cortex/router.py](../../../Constellation-Server/cortex/cortex/router.py) `AVAILABLE_TOOLS["applescript_mail"]` description 改写为三段式 (REPLY / COMPOSE / SEARCH)，让 Router GPT 学会三种意图的映射。
 - 没有任何代码或 Router 行为对应"新邮件 push"——符合 C-18。
 
 ### Diff to existing constraints
@@ -425,8 +425,8 @@ Phase 2 收尾后 Zack 给出两个典型用例并 explicitly 说"还有很多�
 
 ### 实施影响（落地于本次会话）
 
-- [cortex/cortex/router.py](cortex/cortex/router.py) Plan schema 加 optional `task_continues` + `next_step_hint`. System prompt 加三段：multi-step pattern / free-form feedback interpretation / HUD body design。
-- [cortex/cortex/server.py](cortex/cortex/server.py): `_pending_previews` 加 `task_history` 字段；`_handle_user_decision` 重构为统一的 `_advance_task()` 路径——SEND on `task_continues:true` 或任何 FEEDBACK 都触发 Router re-invoke，把 task_history + 可选 feedback_text inline 进 prompt。Router 决定是 redo / advance / skip / inject。
+- [cortex/cortex/router.py](../../../Constellation-Server/cortex/cortex/router.py) Plan schema 加 optional `task_continues` + `next_step_hint`. System prompt 加三段：multi-step pattern / free-form feedback interpretation / HUD body design。
+- [cortex/cortex/server.py](../../../Constellation-Server/cortex/cortex/server.py): `_pending_previews` 加 `task_history` 字段；`_handle_user_decision` 重构为统一的 `_advance_task()` 路径——SEND on `task_continues:true` 或任何 FEEDBACK 都触发 Router re-invoke，把 task_history + 可选 feedback_text inline 进 prompt。Router 决定是 redo / advance / skip / inject。
 - 客户端 (Phase 3, glass-android): 每张 HUD card 渲染时 starts mic with VAD-stop; default option tap 或 mic 输入都走同一个 `user_decision` channel; C-22 是 Phase 3 deliverable 硬要求，从 day 1 设计起。
 - INTERFACE-CONTRACTS §1.5 (Feedback Loop) 升级：feedback 不再是用户"主动选 FEEDBACK option"才能用的特殊路径——it's the **default channel** for any HUD card response. options 是 default-button shortcut。
 
@@ -474,9 +474,9 @@ Phase 2/3a 收尾后 Zack 在 v0.5 multi-step + 12-adapter 路径上做了几次
 ### 实施影响（落地于本次会话）
 
 - **新组件**：
-  - [cortex/cortex/classifier.py](../../Code/Projects/Constellation-Server/cortex/cortex/classifier.py) — 一步分类：`{complex: bool, why: str}`. 简单走 v0.5 Router；复杂走 agent path. Fail-closed 到 complex.
-  - [cortex/cortex/agent_brief.py](../../Code/Projects/Constellation-Server/cortex/cortex/agent_brief.py) — 给 CC 的 brief 模板 v2.6: YOU MUST 强调 + R1/R2/R3 + self-check + phase pattern + inline-Twin slices（v0.5 selector 复用）。
-  - [tool-agent/tool_agent/adapters/claude_code.py](../../Code/Projects/Constellation-Server/tool-agent/tool_agent/adapters/claude_code.py) — `_agent` / `_agent_continue` / `_agent_kill` actions; jsonl tail + 8s thinking heartbeat + end_turn 完成检测.
+  - [cortex/cortex/classifier.py](../../../Constellation-Server/cortex/cortex/classifier.py) — 一步分类：`{complex: bool, why: str}`. 简单走 v0.5 Router；复杂走 agent path. Fail-closed 到 complex.
+  - [cortex/cortex/agent_brief.py](../../../Constellation-Server/cortex/cortex/agent_brief.py) — 给 CC 的 brief 模板 v2.6: YOU MUST 强调 + R1/R2/R3 + self-check + phase pattern + inline-Twin slices（v0.5 selector 复用）。
+  - [tool-agent/tool_agent/adapters/claude_code.py](../../../Constellation-Server/tool-agent/tool_agent/adapters/claude_code.py) — `_agent` / `_agent_continue` / `_agent_kill` actions; jsonl tail + 8s thinking heartbeat + end_turn 完成检测.
 - **变更组件**：
   - cortex.router — `AVAILABLE_TOOLS` 11→10 tools / 50+→11 actions（只剩 bounded single-call）；catalog 之外的能力都到 agent path. Adapter code 保留为 regression 安全网.
   - cortex.server — `_handle_user_invoke` 先调 classifier；`_dispatch_complex_agent` 共享 brief + Twin selector + tmux dispatch；`_check_phase_done` 检测 checkpoint 弹 ⏸ card；`_handle_user_decision` 在 phase 上 dispatch `agent_continue`.

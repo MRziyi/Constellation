@@ -380,6 +380,20 @@
     own glanceable pip lives bottom-right; we leave that zone untouched.
   </p>
 
+  <div class="callout" style="border-left:4px solid #c5403a;background:#fff5f4;">
+    <b>⚠ v2.1 pivot (2026-05-26).</b> The kbd labels in §1.4 card footers
+    below were updated to the v2.1 physical-key vocabulary
+    (<code>CLICK</code> / <code>LONG</code> / <code>DOUBLE</code> on the
+    right-temple Sprite button; <code>2F·TAP</code> for the two-finger touchpad).
+    Wake words ("Constellation / 你好 / 嘿 Cortex") and InstructSdk wake-word
+    listening are <b>removed</b> — mic only opens on a physical button click
+    with a 15s hard cap. Always-on mic on CARD entry is also removed
+    (energy budget). §1.8 voice-command vocabulary further below is
+    historical — kept for archaeology, not current truth. See
+    <code>docs/glass/GLASS-CLIENT-DESIGN.md v2.1</code> for the
+    authoritative spec.
+  </div>
+
   <div class="callout">
     <b>v2 model — what changed from the original sketch.</b> The HUD used to be
     "two atoms" (status pill + card). It's now a <b>state machine</b>: the wearer's
@@ -532,21 +546,20 @@ walk, get water.
           </div>
         </div>
         <div class="glass-card-footer">
-          <span><kbd>好</kbd> approve</span>
-          <span><kbd>改</kbd> modify</span>
-          <span><kbd>停</kbd> kill</span>
+          <span><kbd>CLICK</kbd> approve</span>
+          <span><kbd>LONG</kbd> modify</span>
+          <span><kbd>DOUBLE</kbd> kill</span>
         </div>
         <div class="ring-pip">◷ ring · 14:02</div>
       </div>
-      <div class="label">Markdown rendered as styled runs · voice + ring both work</div>
+      <div class="label">Markdown rendered as styled runs · physical-key driven (v2.1)</div>
       <div class="desc">
         Body arrives pre-parsed as <code>body_runs:[{text,style}]</code>;
         glass renders bold/italic/code via nested TextViews with the right
         <code>textStyle</code>. <b>No raw <code>**</code> ever shown.</b>
-        <b>Mic auto-opens</b> on CARD entry — capped at 30 s if unused.
-        If Halo Ring is paired, the same gestures bind (TAP = approve, LONG_PRESS
-        = modify, DOUBLE_TAP = kill, SWIPE = scroll). Voice commands work
-        independently of ring presence.
+        Mic only opens on <kbd>LONG</kbd> (modify) and is capped at <b>15 s</b>
+        (energy budget, C-37). If Halo Ring is paired, ring gestures
+        map in parallel (optional companion).
       </div>
     </div>
   </div>
@@ -575,17 +588,18 @@ Looking forward.
 – Zack</div>
         </div>
         <div class="glass-card-footer">
-          <span><kbd>好</kbd> send</span>
-          <span><kbd>改</kbd> revise</span>
-          <span><kbd>停</kbd> cancel</span>
+          <span><kbd>CLICK</kbd> send</span>
+          <span><kbd>LONG</kbd> revise</span>
+          <span><kbd>DOUBLE</kbd> cancel</span>
         </div>
         <div class="ring-pip">◷ ring · 14:02</div>
       </div>
       <div class="label">Preview action — outbound side-effect</div>
       <div class="desc">
-        Canonical case. <code>好</code> sends; <code>改</code> opens mic for a
-        feedback utterance (iterations unbounded). Last 5 seconds of TTL turn the
-        bar amber.
+        Canonical case. <kbd>CLICK</kbd> sends; <kbd>LONG</kbd> opens the mic for
+        one 15s feedback utterance, which becomes a single-shot
+        <code>_replan_with_feedback</code> round (C-33 / C-37).
+        Last 5 seconds of TTL turn the bar amber.
       </div>
     </div>
 
@@ -602,17 +616,17 @@ Want me to open the draft and start a review?</div>
         </div>
         <div class="insight-bar"><span></span></div>
         <div class="glass-card-footer">
-          <span><kbd>看一下</kbd> engage</span>
-          <span class="dim">auto-close 8 s</span>
+          <span><kbd>2F·TAP</kbd> engage</span>
+          <span class="dim">auto-close 8 s · hud_show-only</span>
         </div>
         <div class="ring-pip">◷ ring · 14:02</div>
       </div>
-      <div class="label">P6 Insight Engine — proactive</div>
+      <div class="label">P6 Insight Engine — proactive (hud_show-only, no buttons)</div>
       <div class="desc">
         Same card template, different lifecycle: appears in IDLE state only,
-        8 s ttl, auto-closes. "看一下" within the window transitions to LISTENING
-        with the insight body as <code>prior_insight_context</code> for the
-        classifier.
+        8 s ttl (C-34, C-37), auto-closes. A two-finger single tap within
+        the window engages — transitions to LISTENING with the insight body
+        as <code>prior_insight_context</code> for the classifier.
       </div>
     </div>
 
@@ -628,9 +642,9 @@ HCI researcher · MIT Media Lab · AR + education.
 You committed: <span class="i">review her CHI draft by 4/30</span>.</div>
         </div>
         <div class="glass-card-footer">
-          <span><kbd>好</kbd> log encounter</span>
-          <span><kbd>改</kbd> open archive</span>
-          <span><kbd>停</kbd> dismiss</span>
+          <span><kbd>CLICK</kbd> log encounter</span>
+          <span><kbd>LONG</kbd> open archive</span>
+          <span><kbd>DOUBLE</kbd> dismiss</span>
         </div>
         <div class="ring-pip">◷ ring · 14:02</div>
       </div>
@@ -655,9 +669,9 @@ Wants to write to <span class="c">secrets/</span>
 directory. Allow <span class="b">once</span>, for this <span class="b">session</span>, or <span class="b">deny</span>?</div>
         </div>
         <div class="glass-card-footer">
-          <span><kbd>好</kbd> once</span>
-          <span><kbd>改</kbd> session</span>
-          <span><kbd>停</kbd> deny</span>
+          <span><kbd>CLICK</kbd> once</span>
+          <span><kbd>LONG</kbd> session</span>
+          <span><kbd>DOUBLE</kbd> deny</span>
         </div>
         <div class="ring-pip">◷ ring · 14:02</div>
       </div>
@@ -665,9 +679,9 @@ directory. Allow <span class="b">once</span>, for this <span class="b">session</
       <div class="desc">
         Same template; the title comes prefixed with the tool icon and
         <code>options[]</code> derives from the tool's reverse-wake payload.
-        The 3-button voice mapping is still
-        <code>好 / 改 / 停</code> — the labels under each are
-        whatever the tool sent.
+        The 3-button physical-key mapping is always
+        <kbd>CLICK</kbd> / <kbd>LONG</kbd> / <kbd>DOUBLE</kbd> — the labels
+        under each are whatever the tool sent.
       </div>
     </div>
   </div>

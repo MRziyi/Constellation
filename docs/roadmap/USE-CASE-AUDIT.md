@@ -2,7 +2,7 @@
 
 **Version**: v0.2 (pre-Phase-1 original v0.1 audit + post-R-3 addendum)
 **Status**: 历史 audit + Post-R-3 re-audit
-**关联文档**: [DESIGN.md](DESIGN.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [DATA-MODEL.md](DATA-MODEL.md) · [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md)
+**关联文档**: [DESIGN.md](../constitution/DESIGN.md) · [CORTEX-ROUTER-PROMPT.md](../server/CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](../server/TOOL-ADAPTERS.md) · [DATA-MODEL.md](../server/DATA-MODEL.md) · [SOURCE-OF-TRUTH.md](../constitution/SOURCE-OF-TRUTH.md)
 **Last updated**: 2026-05-24
 
 Purpose: pressure-test the framework before Phase 1 implementation. Two parts:
@@ -27,7 +27,7 @@ Purpose: pressure-test the framework before Phase 1 implementation. Two parts:
 | 1 | Glass | Voice Invoke (LP+SWIPE_UP) → photo + STT → `user_invoke {image, text: "回复这封邮件，三个小时后开会，用英语礼貌"}` | ✓ Phase 3 |
 | 2 | Cortex Event Bus | Assigns `evt_001` | ✓ Phase 1 |
 | 3 | Cortex Router | Reads Twin context_pack: `identity.md` + `skills/email-style.md` + (maybe) `people/core/{sender}.md` if sender is known | ✓ Phase 2 |
-| 4 | Cortex Router | GPT call → dispatch plan (4 subtasks: `applescript_mail.read_current` → `claude_code.draft` → `applescript_mail.send` (preview) → `applescript_reminders.add` (auto)) | ✓ [CORTEX-ROUTER-PROMPT Example 1](CORTEX-ROUTER-PROMPT.md) |
+| 4 | Cortex Router | GPT call → dispatch plan (4 subtasks: `applescript_mail.read_current` → `claude_code.draft` → `applescript_mail.send` (preview) → `applescript_reminders.add` (auto)) | ✓ [CORTEX-ROUTER-PROMPT Example 1](../server/CORTEX-ROUTER-PROMPT.md) |
 | 5 | Tool Agent | Run subtask 1 + 2 → returns draft | ✓ Phase 2 |
 | 6 | Cortex | Build `preview_action` HUD card | ✓ Phase 2/3 |
 | 7 | Glass | Render card → user SEND | ✓ Phase 3 |
@@ -55,7 +55,7 @@ UC2 has 3 sub-modes:
 |---|---|---|---|
 | 1 | CC (in tmux) | Outputs `Do you want to write secrets/? (y/n)` | — |
 | 2 | Tool Agent `claude_code` adapter | Regex match per `skills/claude-code-control.md` → emit `tool_reverse_wake` event | ✓ Phase 5 |
-| 3 | Cortex Router | GPT call w/ wake event → outputs `tool_card` HUD response | ✓ [Example 4](CORTEX-ROUTER-PROMPT.md) |
+| 3 | Cortex Router | GPT call w/ wake event → outputs `tool_card` HUD response | ✓ [Example 4](../server/CORTEX-ROUTER-PROMPT.md) |
 | 4 | Push notification (if Glass idle) → Glass wakes | ✓ Phase 5 |
 | 5 | Glass | Renders P4 tool card with ONCE/SESSION/DENY options | ✓ Phase 3 |
 | 6 | User taps ONCE → `user_decision` event | ✓ Phase 5 |
@@ -69,7 +69,7 @@ UC2 has 3 sub-modes:
 | Step | Component | Action | Verified |
 |---|---|---|---|
 | 1 | Glass | Voice Invoke → `user_invoke {text: "how's the build"}` | ✓ Phase 3 |
-| 2 | Cortex Router | Dispatches `claude_code.get_status` | ✓ [Example 3](CORTEX-ROUTER-PROMPT.md) |
+| 2 | Cortex Router | Dispatches `claude_code.get_status` | ✓ [Example 3](../server/CORTEX-ROUTER-PROMPT.md) |
 | 3 | Tool Agent | Returns last 10 lines + state | ✓ Phase 5 |
 | 4 | Cortex | `hud_show` card with summary | ✓ |
 | 5 | Glass renders | ✓ Phase 3 |
@@ -81,7 +81,7 @@ UC2 has 3 sub-modes:
 - ✓ User starts CC via Voice Invoke ("用 CC 在 R08-dev 跑 refactor") → Tool Agent owns the session → `get_status` works
 - ✗ User manually `claude` in iTerm → Tool Agent doesn't see it → `get_status` returns "no active sessions"
 
-**Fix B** (recommended): make this constraint explicit in [TOOL-ADAPTERS.md §1](TOOL-ADAPTERS.md) + [IMPLEMENTATION-PLAN Phase 5](IMPLEMENTATION-PLAN.md). User-facing: "If you want Cortex to remote-control Claude Code, launch it through Voice Invoke." (v2 may scan tmux globally for CC sessions, but v1 keeps the ownership model simple.)
+**Fix B** (recommended): make this constraint explicit in [TOOL-ADAPTERS.md §1](../server/TOOL-ADAPTERS.md) + [IMPLEMENTATION-PLAN Phase 5](IMPLEMENTATION-PLAN.md). User-facing: "If you want Cortex to remote-control Claude Code, launch it through Voice Invoke." (v2 may scan tmux globally for CC sessions, but v1 keeps the ownership model simple.)
 
 #### 2C. User-initiated CC tasking ("用 CC 在某个目录跑 X")
 
@@ -90,7 +90,7 @@ UC2 has 3 sub-modes:
 | 1 | Voice Invoke → `user_invoke {text: "用 Claude Code 在 R08-dev 重构 auth.ts"}` | ✓ Phase 3 |
 | 2 | Cortex Router | Dispatches `claude_code.run(prompt, working_dir="R08-dev")` | ✓ |
 | 3 | Tool Agent spawns tmux session, starts CC | ✓ Phase 2/5 |
-| 4 | `preview_action` card BEFORE spawn (since `claude_code.run` is `preview-always` per [confirm-policies.md](twin-seed/skills/confirm-policies.md)) | ✓ |
+| 4 | `preview_action` card BEFORE spawn (since `claude_code.run` is `preview-always` per [confirm-policies.md](../../../Constellation-Server/twin-seed/skills/confirm-policies.md)) | ✓ |
 | 5 | User SEND → CC starts | ✓ |
 
 **Verdict 2C**: ✓ **PASS**.
@@ -117,7 +117,7 @@ UC3 has 4 sub-modes:
 | 6 | User SEND → all writes happen | ✓ |
 | 7 | CHANGELOG.md updated | ✓ |
 
-**Verdict 3A**: ✓ **PASS** (uses Cortex's 2-pass routing per [CORTEX-ROUTER-PROMPT.md error-handling section](CORTEX-ROUTER-PROMPT.md)).
+**Verdict 3A**: ✓ **PASS** (uses Cortex's 2-pass routing per [CORTEX-ROUTER-PROMPT.md error-handling section](../server/CORTEX-ROUTER-PROMPT.md)).
 
 #### 3B. Re-meet → match → show archive
 
@@ -126,7 +126,7 @@ UC3 has 4 sub-modes:
 | 1 | Quick Shortcut #1 (DT+SWIPE_UP) → photo + preset prompt | ✓ Phase 3 |
 | 2 | Cortex Router | `local_face_recognition.match` → returns match | ✓ Phase 6 |
 | 3 | Cortex Router (2nd pass) | `fs.read people/core/{slug}.md` → synthesize summary | ✓ |
-| 4 | `hud_show` info card per [ui-mockup §1.10](Doc/ui-mockup.html) | ✓ |
+| 4 | `hud_show` info card per [ui-mockup §1.10](../../Doc/ui-mockup.html) | ✓ |
 | 5 | LOG ENCOUNTER option → `fs.append people/core/{slug}.md` with new encounter timestamp | ✓ |
 
 **Verdict 3B**: ✓ **PASS**.
@@ -155,7 +155,7 @@ UC3 has 4 sub-modes:
 
 **Architectural gap**: Glass client doesn't have a long-form transcription mode. The Voice Invoke pipeline (photo + short STT, VAD-stop ~2 s) doesn't support arbitrary-length recording.
 
-**Resolution**: Per [SoT §10 D-I](SOURCE-OF-TRUTH.md) and [DESIGN.md §5 Cool Examples Library](DESIGN.md), "ambient transcription with diarized attribution" is **explicitly parked** as cool feature #1, not v1. This means **UC3-D was always partially out of scope**.
+**Resolution**: Per [SoT §10 D-I](../constitution/SOURCE-OF-TRUTH.md) and [DESIGN.md §5 Cool Examples Library](../constitution/DESIGN.md), "ambient transcription with diarized attribution" is **explicitly parked** as cool feature #1, not v1. This means **UC3-D was always partially out of scope**.
 
 **Recommended action**: explicitly document this in [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md) Phase 6 so it's not a surprise — UC3-D is parked, not blocked.
 
@@ -323,7 +323,7 @@ Each designed under the existing framework constraints. Each has: architecture t
 
 **Why practical**: Daily for any engineer. Stacktrace-to-colleague is a common ask.
 
-**Pass on current architecture**: ✓ **YES** — exact multi-tool dispatch pattern shown in [CORTEX-ROUTER-PROMPT.md Example 1](CORTEX-ROUTER-PROMPT.md). No new mechanisms.
+**Pass on current architecture**: ✓ **YES** — exact multi-tool dispatch pattern shown in [CORTEX-ROUTER-PROMPT.md Example 1](../server/CORTEX-ROUTER-PROMPT.md). No new mechanisms.
 
 ---
 
@@ -348,7 +348,7 @@ Three small fixes from the audit. None require code (we're pre-implementation); 
 
 ### Fix A · Add intent-overrides-style directive to Router prompt
 
-**Where**: [CORTEX-ROUTER-PROMPT.md §1 system prompt → PRIMARY DIRECTIVES](CORTEX-ROUTER-PROMPT.md)
+**Where**: [CORTEX-ROUTER-PROMPT.md §1 system prompt → PRIMARY DIRECTIVES](../server/CORTEX-ROUTER-PROMPT.md)
 
 **Add directive 7**:
 
@@ -358,7 +358,7 @@ This resolves UC1's "casual default vs user-says-polite" issue.
 
 ### Fix B · Document CC session ownership constraint
 
-**Where**: [TOOL-ADAPTERS.md §1 `claude_code`](TOOL-ADAPTERS.md) — add a "Constraint" subsection. Also add note in [IMPLEMENTATION-PLAN Phase 5](IMPLEMENTATION-PLAN.md).
+**Where**: [TOOL-ADAPTERS.md §1 `claude_code`](../server/TOOL-ADAPTERS.md) — add a "Constraint" subsection. Also add note in [IMPLEMENTATION-PLAN Phase 5](IMPLEMENTATION-PLAN.md).
 
 **Constraint**:
 
@@ -376,7 +376,7 @@ This resolves UC1's "casual default vs user-says-polite" issue.
 
 > **UC3 partial parking**: SoT §10.3 mentions ambient transcription ("我和某人在聊天时开启了转写"). This requires a **long-form recording mode** on Glass that the v1 Voice Invoke pipeline (short utterance + VAD-stop) does not provide.
 >
-> Per [SoT N-3](SOURCE-OF-TRUTH.md) and [DESIGN.md §5 Cool Examples Library](DESIGN.md), "Ambient transcription with diarized attribution" is parked as cool feature #1, not v1.
+> Per [SoT N-3](../constitution/SOURCE-OF-TRUTH.md) and [DESIGN.md §5 Cool Examples Library](../constitution/DESIGN.md), "Ambient transcription with diarized attribution" is parked as cool feature #1, not v1.
 >
 > **UC3 v1 scope**: A (initial capture), B (re-meet match), C (cross-time recall). UC3-D (long-form transcript) deferred.
 >
@@ -420,7 +420,7 @@ The original v0.1 audit traces UC1 as a single dispatch plan (4 subtasks). Under
 
 For UC1 "回复，三个小时后开会" both shapes work. The Router judges which is cleaner — single-shot for short/clear intents, multi-step when the user mid-stream might want to look at the original email first or correct interpretation.
 
-The "原 SoT 提到的 Jane 邮件" + style conflict issue in v0.1 audit (fix A: "user intent overrides default skill") was **resolved** in router.py SYSTEM_PROMPT and reflected in [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) v0.2 directives + contact lookup section.
+The "原 SoT 提到的 Jane 邮件" + style conflict issue in v0.1 audit (fix A: "user intent overrides default skill") was **resolved** in router.py SYSTEM_PROMPT and reflected in [CORTEX-ROUTER-PROMPT.md](../server/CORTEX-ROUTER-PROMPT.md) v0.2 directives + contact lookup section.
 
 ### UC1+ Extended example (canonical R-3 demo)
 
@@ -428,13 +428,13 @@ Zack's **云 email** example introduced 2026-05-24 is the canonical multi-step:
 
 > "看前两天给云的邮件找 meeting 时间，加 reminder，再写邮件告诉她我准备好下周下午约"
 
-This is genuinely impossible single-shot: the user must judge the extracted meeting time mid-task before Cortex commits to reminder time + reply content. See [CORTEX-ROUTER-PROMPT.md §3 Example 2](CORTEX-ROUTER-PROMPT.md) for the 2-round Router trace.
+This is genuinely impossible single-shot: the user must judge the extracted meeting time mid-task before Cortex commits to reminder time + reply content. See [CORTEX-ROUTER-PROMPT.md §3 Example 2](../server/CORTEX-ROUTER-PROMPT.md) for the 2-round Router trace.
 
 ### UC2 Reverse-wake — fully wired and verified (2026-05-24)
 
 The original audit listed UC2 sub-modes 2A/2B as "✓ Phase 5". They were **demoed end-to-end on 2026-05-24** by `test-harness/real_cc_reverse_wake.py`: real CC v2.1.x permission UI ("Do you want to proceed? / ❯ 1. Yes / 2. Always allow / 3. No") → Tool Agent watcher detected → Cortex tool_card → fake-Glass `allow_once` → send_keys `[Enter]` → CC continued → target file written.
 
-Patterns updated per CC v2.x menu format ([TOOL-ADAPTERS.md §1](TOOL-ADAPTERS.md)). UC2 is implementation-verified, not just architecturally pass.
+Patterns updated per CC v2.x menu format ([TOOL-ADAPTERS.md §1](../server/TOOL-ADAPTERS.md)). UC2 is implementation-verified, not just architecturally pass.
 
 ### UC3 — unchanged
 

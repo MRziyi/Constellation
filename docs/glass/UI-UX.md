@@ -2,14 +2,14 @@
 
 **Version**: v0.4 (v2.1 pivot annotation)
 **Status**: Phase 3b 实施中. **Glass 端的硬件 / SDK / 交互方式已迁到 [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1** — 本文档保留 web HUD 的设计原则 + 跨 surface 共享语言。Glass 物理输入 / 渲染 / 音频细节看 GLASS-CLIENT-DESIGN.md.
-**关联文档**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 · [DESIGN.md](DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · **[Doc/ui-mockup.html](Doc/ui-mockup.html)** (视觉 ground truth — v0.3 内容; §1 由 GLASS-CLIENT-DESIGN.md v2.1 supersede) · **[halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md)** (现在是 optional companion) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md)
+**关联文档**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 · [DESIGN.md](../constitution/DESIGN.md) · [INTERFACE-CONTRACTS.md](../server/INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](../server/COMPONENT-DESIGN.md) · [DATA-MODEL.md](../server/DATA-MODEL.md) · **[Doc/ui-mockup.html](../../Doc/ui-mockup.html)** (视觉 ground truth — v0.3 内容; §1 由 GLASS-CLIENT-DESIGN.md v2.1 supersede) · **[halo-ring-plugin-protocol.md](../cross-device/halo-ring-plugin-protocol.md)** (现在是 optional companion) · [CORTEX-ROUTER-PROMPT.md](../server/CORTEX-ROUTER-PROMPT.md)
 **Last updated**: 2026-05-26 (v2.1 pivot annotation)
 
 > ⚠️ **v2.1 pivot note** (2026-05-26): 原 §5 "Cross-app integration (Halo Ring Plugin Protocol)" 部分内容已**降级为 optional companion** — Glass 端物理触控板按键直接覆盖所有交互需求（单击/长按/双击/双指）。Halo Ring 仍可作为额外的环形手势输入，但不再是 HUD 设计的依赖前提。详见 [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 §2.2 + `reference/rokid-glass/bare-metal-docs/01-key-events.md`.
 >
 > 原 §3.4 "always-on mic per card" 也已**撤销**（与 v2.1 能效约束冲突）：mic 现在只在用户主动按物理键开启，15s hard cap 自动关闭。
 
-Constellation Glass 端的 UI/UX 文字落地。视觉细节看 [Doc/ui-mockup.html](Doc/ui-mockup.html)——它是 1:1 ground truth。**本文件只承载决策、原则、跨文档引用**，避免重复 mockup 里的视觉描述。
+Constellation Glass 端的 UI/UX 文字落地。视觉细节看 [Doc/ui-mockup.html](../../Doc/ui-mockup.html)——它是 1:1 ground truth。**本文件只承载决策、原则、跨文档引用**，避免重复 mockup 里的视觉描述。
 
 ---
 
@@ -22,13 +22,13 @@ Constellation Glass 端**只两个 surface**：
 | **HUD overlay** | **99% 的交互** | 用户主动触控（单击/长按/双击/双指）/ Cortex 主动推 / Tool 反向 wake |
 | **App 设置页** | 月度调一次 | 用户手动开 app (改 Cortex IP / shortcut 内容) |
 
-**Glass 物理触控板/按键是主输入路径**（v2.1）；Halo Ring 仍可作为 optional 增强（如果配套环装了），通过 [Plugin Protocol](halo-ring-plugin-protocol.md) 推 profile。Constellation 声明自己能做哪些 actions，被触发时接收 Intent。
+**Glass 物理触控板/按键是主输入路径**（v2.1）；Halo Ring 仍可作为 optional 增强（如果配套环装了），通过 [Plugin Protocol](../cross-device/halo-ring-plugin-protocol.md) 推 profile。Constellation 声明自己能做哪些 actions，被触发时接收 Intent。
 
 ---
 
 ## 2. 视觉语言 (继承 Halo Ring)
 
-100% 继承 Halo Ring 的 8 token + type scale + focus indicator + HUD pill 样式。详 [Doc/ui-mockup.html §1 lead](Doc/ui-mockup.html)。
+100% 继承 Halo Ring 的 8 token + type scale + focus indicator + HUD pill 样式。详 [Doc/ui-mockup.html §1 lead](../../Doc/ui-mockup.html)。
 
 唯一加的语言元素：**新 icon set** (✉ ⌖ ⚙ ✦ ✓)。**不加新颜色**——单副眼镜上不再造第二套色彩 brand。
 
@@ -65,7 +65,7 @@ Card 不是为每个 use case 单独设计。**同一个 Compose 组件**，靠�
 
 ### 3.2 Card cases 覆盖
 
-参 [Doc/ui-mockup.html §1](Doc/ui-mockup.html) frames 1.3 ~ 1.11.
+参 [Doc/ui-mockup.html §1](../../Doc/ui-mockup.html) frames 1.3 ~ 1.11.
 
 | Case | icon | stripe | options 示例 |
 |---|---|---|---|
@@ -104,7 +104,7 @@ User responds via ONE of:
   (c) Wait full ttl → Glass auto-dismisses → user_decision { decision: "dismiss" }
 ```
 
-**Visual treatment** (per [Doc/ui-mockup.html](Doc/ui-mockup.html) — Phase 3 client implements):
+**Visual treatment** (per [Doc/ui-mockup.html](../../Doc/ui-mockup.html) — Phase 3 client implements):
 - Card always shows a thin mic indicator (small ⌖ dot bottom-left or top-right, color-matched
   to existing focus indicator)
 - Optionally show a tiny waveform when user speaks (reuse existing "Listening…" pill style)
@@ -114,7 +114,7 @@ User responds via ONE of:
 ### 3.5 Free-form feedback semantics (v0.3 per R-3 / C-23)
 
 When the user speaks, Cortex Router classifies `feedback_text` into one of four categories
-(per [CORTEX-ROUTER-PROMPT.md §1.2](CORTEX-ROUTER-PROMPT.md)) and shapes the next plan
+(per [CORTEX-ROUTER-PROMPT.md §1.2](../server/CORTEX-ROUTER-PROMPT.md)) and shapes the next plan
 accordingly. The user doesn't have to know which category — they just speak:
 
 | User says (示例) | Router interprets as | Result |
@@ -208,7 +208,7 @@ When CC emits actions without `phase_done`, Cortex builds the standard `preview_
 
 ## 4. App 设置页 (只 5 个 frame)
 
-参 [Doc/ui-mockup.html §2](Doc/ui-mockup.html) frames 2.1 ~ 2.5.
+参 [Doc/ui-mockup.html §2](../../Doc/ui-mockup.html) frames 2.1 ~ 2.5.
 
 | Page | 内容 | 用途 |
 |---|---|---|
@@ -235,7 +235,7 @@ When CC emits actions without `phase_done`, Cortex builds the standard `preview_
 
 ## 5. 跨 App 集成 (Halo Ring Plugin Protocol)
 
-**Constellation 没有任何手势 UI**。手势在 Halo Ring 改。具体协议详 [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md)。
+**Constellation 没有任何手势 UI**。手势在 Halo Ring 改。具体协议详 [halo-ring-plugin-protocol.md](../cross-device/halo-ring-plugin-protocol.md)。
 
 ### 5.1 触发链路
 
@@ -293,7 +293,7 @@ Halo Ring system gestures (TRIPLE_TAP / QUAD_TAP / LP+SWIPE_DOWN / 2×LP) **永�
 
 - **Version**: v0.3
 - **Last updated**: 2026-05-24
-- **Companion**: [Doc/ui-mockup.html](Doc/ui-mockup.html) v0.2 · [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) v0.1 · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) v0.2
+- **Companion**: [Doc/ui-mockup.html](../../Doc/ui-mockup.html) v0.2 · [halo-ring-plugin-protocol.md](../cross-device/halo-ring-plugin-protocol.md) v0.1 · [CORTEX-ROUTER-PROMPT.md](../server/CORTEX-ROUTER-PROMPT.md) v0.2
 - **Based on**: SoT R-3 (C-22 always-mic + C-21 HUD-as-info-card + C-20 multi-step) → spec 收敛前 Phase 3 客户端实施前最后一版
 
 ### Revision Log
@@ -301,7 +301,7 @@ Halo Ring system gestures (TRIPLE_TAP / QUAD_TAP / LP+SWIPE_DOWN / 2×LP) **永�
 | Version | Changes |
 |---|---|
 | v0.1 | 首版：10 principles / HUD card types / shortcut system / cross-app 描述 (但 mockup 过于 cluttered) |
-| v0.2 | 重写。明确"两类 surface" 边界；HUD 显式标 atom-based 设计 (pill + card)；card 强调通用模板；加 face recognition 作为 card 模板适配性的 demo；app 砍到 5 frame；手势 / profile 完全推给 Halo Ring，配套 [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) 输出 |
+| v0.2 | 重写。明确"两类 surface" 边界；HUD 显式标 atom-based 设计 (pill + card)；card 强调通用模板；加 face recognition 作为 card 模板适配性的 demo；app 砍到 5 frame；手势 / profile 完全推给 Halo Ring，配套 [halo-ring-plugin-protocol.md](../cross-device/halo-ring-plugin-protocol.md) 输出 |
 | v0.3 | **R-3 paradigm 落地**: §3.4 重写 "Response model" — always-on mic + ring tap parallel；mic 不是 opt-in mode 是 default channel；§3.5 新增 "Free-form feedback semantics" — Router 自分类 4 类 (a/b/c/d)；§3.6 新增 "Multi-step task visual treatment" — v1 不加 step indicator；§3.7 标 legacy 单步 feedback iteration still works；OQ-U6 closed；新增 OQ-U7 (always-mic vs Halo Ring SWIPE_UP 冲突分析) + OQ-U8 (multi-step step indicator 决议) + OQ-U9 (STT language detection) |
 
 ---
