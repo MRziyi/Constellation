@@ -15,7 +15,7 @@
 >
 > §1 still has accurate descriptions of: event bus, schema validation, confirm-policies, receipts, Twin reader/writer. Just don't take "Router does the planning round" literally.
 
-本文档定义 Constellation 各组件**内部**的实现结构。Glass / R08 内部设计推迟到 #8 UI/UX session（按 SoT §7 "两个客户端各自的内部设计 = 之后再考虑"）。本文件聚焦 Mac mini 上的三个进程：**Cortex Agent / Tool Agent / MCP Server**。
+本文档定义 Constellation 各组件**内部**的实现结构。两个客户端（**Rokid Glasses** 眼镜本体 + **Halo Ring** 配套智能戒指，R08 是 Ring 的代号）的内部设计推迟到 #8 UI/UX session（按 SoT §7 "两个客户端各自的内部设计 = 之后再考虑"）。本文件聚焦 Mac mini 上的三个进程：**Cortex Agent / Tool Agent / MCP Server**。
 
 ---
 
@@ -26,8 +26,8 @@
 | Cortex Agent | ✓ §1 | — |
 | Tool Agent | ✓ §2 | — |
 | MCP Server | ✓ §3 | — |
-| Glass Client | — | #8 UI/UX |
-| R08 Ring | — | #8 UI/UX (作为 Glass 的遥控器) |
+| Glass Client (Rokid Glasses) | — | #8 UI/UX |
+| Halo Ring (code-name R08) | — | #8 UI/UX (作为 Glass 的遥控器) |
 | Digital Twin | 形态见 [INTERFACE-CONTRACTS §4](INTERFACE-CONTRACTS.md)；详细数据模型 | #6 Data Model |
 
 ---
