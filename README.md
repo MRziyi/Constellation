@@ -40,9 +40,10 @@ Repo layout (post-2026-05-26 reorg): top-level entry points (`README.md`, `HANDO
 
 ### Glass client (Phase 3b — in progress 🔥)
 - [GLASS-CLIENT-DESIGN.md](docs/glass/GLASS-CLIENT-DESIGN.md) v2.1 — bare-metal Android Go app design (supersedes the older CXR-L bridge plan).
+- [GLASS-SDK-REFERENCE.md](docs/glass/GLASS-SDK-REFERENCE.md) — **R08 SDK 速查**（audio / keys / display / FGS / 不用的 SDK + 真机验证清单）；写代码时先翻这个，不必每次回 `reference/` 翻原始 doc。
 - [MIGRATION-PLAN.md](docs/glass/MIGRATION-PLAN.md) — v2.0 → v2.1 migration steps + verification checklist.
 - [UI-UX.md](docs/glass/UI-UX.md) — HUD design + visual language (v2.1 annotations applied).
-- [reference/INDEX.md](reference/INDEX.md) — local mirror of Rokid + whisper + Halo Ring SDK source, plus curated bare-metal docs.
+- [reference/INDEX.md](reference/INDEX.md) — raw SDK / 文档源码（Rokid + whisper + Halo Ring）；GLASS-SDK-REFERENCE 是它的"工作答疑层"。
 
 ### Cross-app integration
 - [halo-ring-plugin-protocol.md](docs/cross-device/halo-ring-plugin-protocol.md) — protocol for Constellation to register actions with Halo Ring (Halo Ring side ✓ shipped; v2.1 makes it **optional**, not required).
