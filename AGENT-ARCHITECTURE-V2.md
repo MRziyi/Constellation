@@ -1,8 +1,8 @@
 # Agent Architecture v2 — Streaming CC Agent + Mid-flight Correction
 
-**Status**: design ✓ (2026-05-25) ⇒ implementation in progress
+**Status**: design ✓ (2026-05-25) → core ✅ landed → P0-P2 polish ✅ landed (2026-05-26: long-lived CC reuse, R-3 ripout, per-session cost rollup, Insight skeleton, archive filter)
 **Supersedes**: DESIGN.md §"Cortex Router" planning model. Router demoted to
-classifier; CC promoted to primary agent. v0.5 selector role narrows.
+single-shot bounded-single-call planner; CC promoted to primary agent for any multi-step / research / drafting ask. v0.5 selector role narrows.
 **Trigger**: Zack's reflection — "我感觉越设计越复杂了… 是否真的需要自己从零搓
 一堆工具调用… 能不能直接甩给 CC… 不要被现有不合理设计所限制的视野…
 我能看到过程而不是直接看到结果… 我每隔几秒就能看到它在运作、它在干嘛、
@@ -559,7 +559,12 @@ escalate. Fail-closed to capability.
 | **5h** | **3-button card contract** (Approve / Modify / Kill). Server enforces; client renders exactly 3; classifier maps free-text feedback to same outcomes. | ✅ done 2026-05-26 |
 | **5i** | **Modify-on-FINAL resume**: when user clicks Modify on an agent FINAL card (after tmux killed at end_turn), spawn fresh tmux with `claude --resume <prior_cc_session_id>` so CC rehydrates its prior research. Revised draft in ~10-15s vs full re-research. Deterministic seek via user-message marker. | ✅ done 2026-05-26 |
 | **5j** | **Twin v2**: 4-slot layout (`identity.md` / `people/core/<slug>.md` / `receipts/<date>.md` / `.claude/skills/<name>/SKILL.md`); minimal frontmatter; placeholders removed; `~/constellation/twin/README.md` is the contract agents read before writing; legacy `skills/` migrated/deleted; `_system/confirm-policies.md` is Cortex runtime config (moved out of skills/). | ✅ done 2026-05-26 |
-| **5k** | **Auto-distiller** ([cortex.distiller.Distiller](../../Code/Projects/Constellation-Server/cortex/cortex/distiller.py)): background process triggered after Modify decisions accumulate (`DISTILL_MIN_MODIFIES=2`, `DISTILL_COOLDOWN=30min`). Reads recent learning queue entries, dispatches CC agent with custom distillation brief, surfaces preview_action card only when stable pattern emerges. Untested at scale (Phase-7 work). | ⚠️ wired 2026-05-26, dogfooding next |
+| **5k** | **Auto-distiller** ([cortex.distiller.Distiller](../../Code/Projects/Constellation-Server/cortex/cortex/distiller.py)): background process triggered after Modify decisions accumulate (`DISTILL_MIN_MODIFIES=2`, `DISTILL_COOLDOWN=30min`). Reads recent learning queue entries, dispatches CC agent with custom distillation brief, surfaces preview_action card only when stable pattern emerges. End-to-end run on a real learning_queue identified a 3× correction pattern (reminders shouldn't carry notes section) and proposed updating `reminder-style/SKILL.md`. Soft `distiller_quiet` progress when no pattern emerges. `/api/dev/distill_now` for forced testing. | ✅ done 2026-05-26 |
+| **5l** | **Long-lived CC per HUD session (P0.1)**: tmux is kept alive after FINAL (`keep_alive_on_final` flag). The next invoke in the same HUD session routes through `agent_continue` paste into the live TUI instead of spawning a fresh CC. **20.9s cold → 10.9s reuse (-47.7%).** 30-min TTL via `_active_hud_session_tmux` registry. Modify-on-FINAL prefers the live tmux too; `--resume` spawn is the TTL-expired fallback. | ✅ done 2026-05-26 |
+| **5m** | **R-3 multi-step machinery ripout (P1.1)**: deleted `_advance_task`, `task_history`, `task_continues`, `MAX_TASK_ROUNDS`, related helpers. Replaced with one-shot `_replan_with_feedback` for Modify-on-simple-path + `ResumeFailed` fallback. Multi-step is now strictly CC's job (via checkpoint pause / agent_continue). | ✅ done 2026-05-26 |
+| **5n** | **Per-session cost/latency rollup (P0.3)**: `current_session_id` ContextVar in `sessions.py`. LLM observer forwards calls to `sessions.append(kind="llm_call", ...)`. Index entries include `llm_latency_ms`, `llm_by_purpose`, `n_tool_uses`, `total_wallclock_ms`. Web Sessions list + detail surface the rollup. | ✅ done 2026-05-26 |
+| **5o** | **Phase 7a Insight Engine skeleton (P1.4)**: `cortex/insight_engine.py` periodic loop, `Insight` type with dedup_key + cooldown, hud_show surface (info-only — must not interrupt agency). Default OFF via `CONSTELLATION_INSIGHT_ENGINE=1`. Starter provider `upcoming_reminders_provider`. `/api/dev/insight_tick` for forced testing. `applescript_reminders.list` returns ISO due dates. | ✅ done 2026-05-26 |
+| **5p** | **Session archive filter + HUD search (P2.1+P2.6)**: `/api/sessions?status=active|archived|killed|all`. Sessions >7 days old derive `archived: true`. Web Sessions has filter chips + text search (title + session_id). | ✅ done 2026-05-26 |
 
 **All Phase 5 sub-phases landed.** Implementation lives across two repos:
 - `Constellation-Server`: cortex/{classifier,server,router,http,agent_brief,distiller,sessions}.py +

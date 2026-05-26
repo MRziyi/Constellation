@@ -1,9 +1,9 @@
 # Constellation — Implementation Plan
 
-**Version**: v0.5
-**Status**: Phase 1 ✓ + Phase 2 ✓ + R-3 ✓ + Phase 3a Web Console ✓ + **Phase 5 v2 ✅ landed** + **Twin v2 ✅ landed 2026-05-26** + **Auto-distiller wired 2026-05-26**. Active next: P0.1 long-lived CC per HUD session + P0.2 distiller dogfooding + P1.3 Glass for the real glasses. **Read [ARCHITECTURE-REFLECTION.md](ARCHITECTURE-REFLECTION.md) before any refactor.**
+**Version**: v0.6
+**Status**: Phase 1 ✓ + Phase 2 ✓ + R-3 ✓ + Phase 3a Web Console ✓ + **Phase 5 v2 ✅ landed** + **Twin v2 ✅ landed** + **Auto-distiller wired** + **P0-P2 sweep ✅ landed 2026-05-26** (long-lived CC reuse, R-3 ripout, Insight Engine skeleton, per-session cost rollup, session archive filter). Active next: P1.3 Glass for the real glasses + P2.x leftovers + P3 architecture refactors (deferred multi-week). **Read [ARCHITECTURE-REFLECTION.md](ARCHITECTURE-REFLECTION.md) before any refactor.**
 **关联文档**: **[ARCHITECTURE-REFLECTION.md](ARCHITECTURE-REFLECTION.md)** · [DESIGN.md](DESIGN.md) · [HANDOFF.md](HANDOFF.md) · [TODO.md](TODO.md) · [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md) · [SOURCE-OF-TRUTH.md](SOURCE-OF-TRUTH.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · [UI-UX.md](UI-UX.md) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) · [TOOL-IDEAS.md](TOOL-IDEAS.md) · [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) · [Doc/ui-mockup.html](Doc/ui-mockup.html)
-**Last updated**: 2026-05-26
+**Last updated**: 2026-05-26 (post P0-P2 sweep)
 
 ---
 
@@ -29,11 +29,12 @@ Each phase has: scope, deliverables, dependencies, success criteria, deferred it
 | 3a — Web Console | ✓ done 2026-05-25 | https://edge.example.com/; cookie auth; 9 routes; full workflow test PASS |
 | **5 (v2 pivot)** — CC-as-agent + streaming + multi-phase checkpoints | **✅ landed 2026-05-25** | per [AGENT-ARCHITECTURE-V2.md](AGENT-ARCHITECTURE-V2.md). Streaming agent (TUI tmux + jsonl tail, $0 marginal cost), glanceable progress + thinking heartbeat, v2.6 brief (YOU MUST + self-check + phase pattern), actions[] preview + executor SEND, **multi-phase checkpoint pattern** (CC emits {phase_done, next} → Cortex blocking ⏸ card → user Continue/Adjust/Cancel → `agent_continue` resumes CC in same tmux). Verified e2e: `actions_e2e.py` PASS, `multi_phase_e2e.py` PASS (1 checkpoint + 1 final, 28s, 11 progress events). |
 | **5c** — Auto-routing classifier ahead of planner | **✅ landed 2026-05-25** | `cortex.classifier` emits `{complex: bool, why: str}` in 1 LLM call (gpt-5.2 today, swap to haiku once Anthropic key added). On `complex=true` → shared `CortexServer._dispatch_complex_agent` (brief + Twin selector + tmux dispatch). On `complex=false` → existing v0.5 selector+planner+executor. Fails-closed to complex on any error. Verified: `"battery?"` → v0.5 path; `"look at my last Kao email and propose a reply"` → agent path + tmux live. |
-| **5g** — Prune `AVAILABLE_TOOLS` catalog | **✅ landed 2026-05-25** | 11 tools / 50+ actions → **10 tools / 11 actions** all bounded single-call (reminders.add / calendar.add_event,list_today / mail.send / fs.write / system_status.get / safari_state.current_tab / apple_shortcuts.run / imessage.send / echo / claude_code.agent). `twin_query` removed (agent has Twin via add_dirs). Adapter code retained in tool_agent for regression safety + agent dispatch. SYSTEM_PROMPT result_format section simplified (`draft` marked legacy). |
-| 3b — Android-native client | ⏸ | deferred until P0/P1 stabilise; inherits Phase 5 protocol shape |
+| **5g** — Prune `AVAILABLE_TOOLS` catalog | **✅ landed 2026-05-25** | 11 tools / 50+ actions → **10 tools / 11 actions** all bounded single-call. |
+| **5 P0-P2** — Long-lived CC + cost rollup + R-3 ripout + Insight skeleton | **✅ landed 2026-05-26** | P0.1 tmux reuse across turns in same HUD session via `agent_continue` (47.7% wallclock savings on follow-up). P0.3 per-session LLM cost/latency telemetry via ContextVar. P1.1 deleted multi-step machinery (`_advance_task`, `task_history`, etc.) — single-shot `_replan_with_feedback` replaces it. P1.4 Insight Engine skeleton with starter `upcoming_reminders_provider`. P2.1+P2.6 session archive filter + HUD search. See [TODO.md](TODO.md) for the per-item ledger. |
+| 3b — Android-native client | ⏸ | deferred; inherits Phase 5 protocol shape |
 | 4 — Rokid Glass deploy | ⏸ | post-3b |
 | 6 — UC3 face | ⏸ | parallelisable |
-| 7 — Insight Engine + Implicit Learning | ⏸ | parallelisable; reverse-wake plumbing already done via Phase 3a.6 push |
+| **7a** — Insight Engine cron skeleton | **✅ landed 2026-05-26 (default OFF)** | `cortex.insight_engine`. Periodic loop + provider registry + dedup + hud_show surface. Enable via `CONSTELLATION_INSIGHT_ENGINE=1`. Phase 7b is the *actual* implicit-learning loop (distiller — already wired 2026-05-26). |
 | 8 — MCP server | ⏸ | parallelisable; ~3 days |
 | 9 — Dogfood + cool-ex stress | ⏸ | final |
 

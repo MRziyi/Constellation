@@ -558,9 +558,72 @@ Phase 2/3a 收尾后 Zack 在 v0.5 multi-step + 12-adapter 路径上做了几次
 
 ### Open Questions
 
-- **OQ-R5-1**: Distiller 阈值 (2 modifies / 30 min cooldown) 是 v0.1 猜值. 真实使用一周后需要根据"产出有用 vs 误报"比例调优.
+- **OQ-R5-1**: Distiller 阈值 (2 modifies / 30 min cooldown) 是 v0.1 猜值. 真实使用一周后需要根据"产出有用 vs 误报"比例调优. **Update 2026-05-26**: `force_run()` 端到端跑通 — 在 13 entries 的 learning_queue 上 identified 一个 3× 修正模式 (reminders 不该带 notes section). 真实积累后再调.
 - **OQ-R5-2**: Distiller 找到的模式如果跟现有 skill 冲突 (e.g. 它建议改 email-style，但跟现有 email-style 矛盾)，谁赢？目前 CC 看到的会做 reasonable 决定，但没显式规则. 等遇到再说.
 - **OQ-R5-3**: `~/constellation/twin/README.md` 是 agent 必读 contract. 如果 README 自己被 Zack 修改了 (e.g. 加了新 field), distiller / agent 怎么知道？目前是 read-on-each-write. 没有 cache. 可能 OK.
-- **OQ-R5-4**: 长生命周期的 tmux per HUD session (P0.1 待做) 改变了 modify-on-FINAL 的语义 — 那时 --resume 不再必要 (tmux 还活着, 直接 send_keys). 这个设计变动需要 SoT 再 revise.
+- **OQ-R5-4**: ~~长生命周期的 tmux per HUD session~~ **CLOSED 2026-05-26 by Revision-6 / P0.1**: tmux 跨 turn 复用已实施; modify-on-FINAL 优先 `agent_continue` paste into live tmux, `--resume` 是 fallback. 见 C-32.
+
+---
+
+## Revision 6 — 2026-05-26 (P0-P2 sweep)
+
+**Status**: confirmed by Zack across this session
+
+完成 P0.1 (long-lived CC reuse) / P0.2 (distiller dogfood) / P0.3 (per-session cost rollup) / P1.1 (R-3 ripout) / P1.4 (Insight Engine skeleton) / P2.1 (archive filter) / P2.6 (HUD search) 后追加的不可逆决定。
+
+### 新约束（追加到 §8）
+
+| 编号 | 约束 | 用户原话依据 |
+|---|---|---|
+| **C-32** | **CC tmux per HUD session 是 stateful 的，跨 turn 复用**. 每次 user_invoke 如果 session_id 已有 alive tmux (TTL <30 min)，路由通过 `agent_continue` (paste into live TUI) 而非 fresh `agent` spawn. Modify-on-FINAL 同理：优先 paste into live tmux；`--resume <cc_session_id>` 仅作 TTL 过期后的 fallback. **TTL 是必须的**——长期复用 + jsonl 增长会稀释 CC 注意力. **Kill 按钮显式 tear-down tmux + 清 registry**. | 实施: P0.1 + 测试 (47.7% wallclock 降幅). |
+| **C-33** | **多步任务的唯一引擎是 CC agent path (checkpoint pause / agent_continue)**. v0.5 simple path 严格单轮: classifier → router → 一组 subtasks → preview_action → Approve/Modify/Kill. Modify 只允许触发**一次** `_replan_with_feedback`. Router prompt 不再含 MULTI-STEP / `task_continues` / 多 round lore. 想要多步研究/起草 → CC. | "P1.1 ripout" — Zack 默许 + 实施 + e2e 测试通过. |
+| **C-34** | **Insight Engine surface 必须是 hud_show (info-only)，不带按钮**. 主动 surface 信息 (upcoming reminder, weather, email reply) 是允许的，但 NOT 中断用户做决策. 任何需要用户决定的事都必须通过 user_invoke pipeline (走 3-button 卡片). Insight Engine 默认 OFF (env `CONSTELLATION_INSIGHT_ENGINE=1`). | 设计 reflection (proactive 不能 hijack agency). |
+| **C-35** | **每个 HUD session 的 LLM cost 必须可见**. Sessions 列表 + 详情都 surface `llm_call_count / llm_latency_ms / llm_by_purpose / n_tool_uses / total_wallclock_ms`. ContextVar `current_session_id` 把 LLM 调用 attribute 到当前 turn. **没有 attribute 的 LLM 调用 (e.g. distiller 跑的)** 也必须属于它自己的 session (distiller 跑时 mint 一个 `(auto)` session). | "P0.3 — Cost & latency transparency on HUD" — 落地 + 用户验证. |
+
+### 实施影响（落地于本次会话）
+
+**P0.1 long-lived tmux (C-32)**:
+- `tool-agent/.../claude_code.py::_agent`: `keep_alive_on_final` arg. True 时 FINAL (no checkpoint) 不 kill tmux, 只停 watcher, mark state=idle_after_final.
+- `cortex/cortex/server.py`: `self._active_hud_session_tmux: dict[sid, {tmux_session, cc_session_id, last_activity, working_dir, timeout_s, last_summary}]`. 30-min TTL via lazy check (`_hud_tmux_lookup`).
+- `_dispatch_complex_agent`: alive entry → dispatch `agent_continue`; else fresh `agent` with `keep_alive_on_final=True`. 失败 → evict + fall back to fresh.
+- `_resume_agent_with_modify`: 同样优先 live tmux + `agent_continue`; `--resume` spawn 是 fallback.
+- Kill 按钮 → `_active_hud_session_tmux.pop(sid)` 显式清.
+- **Measured 47.7% wallclock 降幅** on follow-up turn.
+
+**P1.1 R-3 ripout (C-33)**:
+- 删除: `_advance_task` / `_summarize_step_for_history` / `_write_step_receipt` / `_execute_remaining_no_receipt` / `MAX_TASK_ROUNDS` / `_summarise_subtask_for_history`.
+- 新增: `_replan_with_feedback` — 严格 one-shot router re-plan with feedback. 用于 Modify-on-simple-path + `ResumeFailed` fallback.
+- Router prompt 删除 MULTI-STEP / FREE-FORM-FEEDBACK sections. `task_continues` / `next_step_hint` 从输出 schema 删除. `_validate_plan` 强制 `task_continues=False`.
+- `pending_previews` 不再带 `task_history`. 索引 `tasks_active` 同步清.
+
+**P1.4 Insight Engine (C-34)**:
+- 新模块 `cortex/insight_engine.py` (`InsightEngine`, `Insight`, `Provider` 类型, `upcoming_reminders_provider` 实现).
+- 启动: `serve()` instantiate + `start()`. 默认 OFF.
+- Surface: `hud_show` only (无 options). `_insight_kind` 字段在 payload 里方便 web 端 styling.
+- 冷却: per-insight `cooldown` + global `GLOBAL_COOLDOWN_S=600`.
+- Dev 端点: `/api/dev/insight_tick` 强制一次 tick.
+- `applescript_reminders.list` 升级返回 ISO 8601 `due` 字段.
+
+**P0.3 per-session cost (C-35)**:
+- `current_session_id` ContextVar (sessions.py). `_handle_user_invoke` + `Distiller._run` 调用 `set()`.
+- `llm_cache._emit` 读取 ContextVar 注入 `session_id` 到 info dict.
+- `cortex.main` 包装 `record_llm_call` 把 LLM 记录 forward 到 `sessions.append(kind='llm_call', ...)`.
+- 索引 entry 新字段: `llm_latency_ms`, `llm_by_purpose: dict`, `n_tool_uses`, `total_wallclock_ms`, `archived: bool`.
+- 索引 bump 触发器扩展: 增加 `card_surfaced / agent_completed / llm_call`.
+- Web `Sessions.tsx` 列表行 + 详情 header 都 surface 这些字段.
+
+### Diff to existing constraints
+
+- **C-9/C-10 (HITL preview)**: 不变；Insight Engine 的 hud_show 因为不是 side-effecting 也不需要 HITL.
+- **C-22 (always-on mic per card)**: 不变；现在适用于所有 preview_action 卡片，包括 distiller 提议的卡片.
+- **C-25 (visible process)**: 强化——`reusing_agent` / `distiller_quiet` / `distiller_proposing` / Insight tick progress 都 visible.
+- **C-28 (3-button)**: 强化——确认 Insight Engine surface 是无按钮的 hud_show 而非 preview_action (C-34).
+- **C-31 (distiller 后台触发)**: 强化——加了 `force_run()` + `/api/dev/distill_now` 但默认仍只在阈值/冷却后自动触发.
+
+### Open Questions
+
+- **OQ-R6-1**: tmux TTL 设了 30 min. 这是猜的. 实际使用一周后看 (a) 一个 session 内连续 turn 间隔通常多久，(b) 超过 30 min 后用户复用率有多高，调阈值.
+- **OQ-R6-2**: 进入 `archived` (>7 天) 的 session 现在只是 UI 过滤. 是否要正经搬到 `_system/sessions/archive/YYYY-MM/` 子目录？短期没必要；只读的归档子目录是长期方案 (>1000 sessions 后再考虑).
+- **OQ-R6-3**: P3.1 (collapse Tool Agent into Cortex) — 时机？当 (a) tool-agent IPC 成为可观察的延迟来源 (现在不是), 或 (b) launchd 双进程管理出 bug 频次升高 (现在没出), 才开工. 现在的 cost 是一个 WSS hop ~2ms; 不值得.
 
 ---
