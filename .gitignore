@@ -9,3 +9,12 @@
 # Local notes / scratch
 *.draft.md
 scratch/
+
+# reference/ — big SDK clones live here (~1 GB). Ignore raw clones,
+# but keep our curated INDEX.md + bare-metal-docs (they're authored notes,
+# not raw clones).
+reference/**
+!reference/INDEX.md
+!reference/rokid-glass/
+!reference/rokid-glass/bare-metal-docs/
+!reference/rokid-glass/bare-metal-docs/**
