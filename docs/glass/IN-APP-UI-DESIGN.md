@@ -1,122 +1,283 @@
 # Constellation-Glass — In-App UI Design (§2 of ui-mockup)
 
-**Status**: design — needs Zack's approval before implementation.
-**Companion**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 · [GLASS-SDK-REFERENCE.md](GLASS-SDK-REFERENCE.md) · [Doc/ui-mockup.html §2](../../Doc/ui-mockup.html) · [halo-ring-plugin-protocol.md](../cross-device/halo-ring-plugin-protocol.md)
+**Status**: design v2 — incorporates user direction "应用内设置跑在眼镜上，参考 Halo Ring 范式".
+**Companion**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 · [GLASS-SDK-REFERENCE.md](GLASS-SDK-REFERENCE.md) · [Doc/ui-mockup.html §2](../../Doc/ui-mockup.html) · `~/Code/Projects/Halo-Ring/app-project/app/src/main/kotlin/com/halo/ring/ui/` (reference)
 
 ---
 
 ## 1. 范围 + 它**不**是什么
 
-P1.6 完成了 HUD（眼镜端面板上显示的 6 个 state）。**这份文档**说的是另一个表面 —— 当用户打开 app 图标时进入的**配置 / 状态 / 调试**界面。
+P1.6 完成了 HUD（眼镜端面板上的 6 个 state machine 状态）。**这份文档**说的是另一个表面 —— **用户打开 app 图标后进入的配置界面，跑在眼镜本机面板上**（不是甩到配对手机）。
 
-| 表面 | 谁看 | 何时显示 | P1.6 状态 |
+| 表面 | 何时显示 | 谁绘制 | 状态 |
 |---|---|---|---|
-| **HUD** (Compose AppStateHud) | 眼镜佩戴者 | Service 推 state 时 | ✅ 完成 |
-| **In-App UI** (本文) | 用户在手机上打开 app | 用户主动开 app 时 | ⏸ 未开工 |
+| **HUD** (`GlassHudActivity` + `AppStateHud` Compose) | Service 推 state 时 | Service-driven snapshot | ✅ P1.6 完成 |
+| **In-App UI** (本文，`MainActivity` → settings NavHost) | 用户点 app 图标 / launcher 拉起时 | MainActivity-owned Compose | ⏸ 未开工 |
+
+**它在眼镜上跑**：打开 app icon → MainActivity 全屏拉起 → 用**物理键**（CLICK / LONG / DOUBLE / TWO_FINGER_SWIPE_*）翻菜单 → 双击退出回 launcher。
 
 **它不是什么**：
-- ❌ 不是 HUD 的另一个版本（HUD 在眼镜上，配置在手机上 / 启动时）
-- ❌ 不是手势 / profile 编辑器（那住在 Halo Ring 里，per ui-mockup §2 lede + C-38 Halo Ring 为 optional）
-- ❌ 不是 HUD 主题 / TTL / 字号调节台（defaults handle 一切）
+- ❌ 不甩到手机（眼镜端就能完整配置）
+- ❌ 不在 HUD state machine 里（HUD 是瞬时状态机；settings 是独立 Activity / NavHost）
+- ❌ 不是手势 / Halo Ring profile 编辑器（那住在 Halo Ring app 里）
 
-**它是什么**：手机 (phoneDebug) / 眼镜 (glass) 上**打开 app 后**看到的页面。极简：连接状态 + 几个快捷指令 + Cortex 端点信息。
+**为什么改方向**：参考 Halo Ring 已有范式 —— Halo Ring 本身也是为小屏穿戴写的，但在 Rokid 眼镜上提供了完整的 11-section settings UI 用 `FocusableRow` + sealed-class `SubScreen` navigation。Constellation 沿用同套范式。
 
 ---
 
-## 2. 关键决策（提议中，待批）
+## 2. 关键决策（v2 修正）
 
 | # | 决策 | 理由 |
 |---|---|---|
-| D1 | **Compose 渲染**（沿用 HUD 栈） | 单一 UI 栈；HudTheme 颜色/字号可复用；no Material3 |
-| D2 | **主要在 phoneDebug flavor 跑** | 眼镜 480×640 太挤，没法塞 4 个 settings 屏；眼镜上 in-app 只保留极简 Login + "Open app on phone to configure" 提示 |
-| D3 | **MainActivity 从 "one-shot launcher" 升级为持久 nav host** | 当前 MainActivity onCreate→login→`finish()` 后就死了，不可能回到 settings。需要变成 NavHost (Compose navigation 或手搭 sealed-class) 持久存在 |
-| D4 | **本地状态 = DataStore (Preferences)；shortcuts = Cortex/Twin** | 连接状态 (cookie) + 连接 endpoint + app prefs 用 DataStore。shortcuts 走 Cortex 端 Twin (`~/constellation/twin/skills/shortcuts.md`)，因为它需要被 Cortex 自身和 Halo Ring 看到 |
-| D5 | **Phase 1 = Main + Connect**，Shortcuts 推到 Phase 3 | shortcuts 涉及 Cortex 协议 + Twin storage + Halo Ring 注册，工作量大；Connect 屏单独最有用（debug 链路用）|
+| D1 | **Compose 渲染**（沿用 HUD 栈） | 单一 UI 栈；HudTheme 颜色/字号复用；no Material3 |
+| **D2** ⚠️ 修正 | **glass flavor 是主战场**——in-app UI 完整跑在 Rokid Glasses 面板上 (480×640)。phoneDebug 同样 UI 镜像作为开发辅助。 | 用户直接定 "不可能 configure on phone"。Halo Ring 已证明小屏深 settings 可行。 |
+| **D3** | **MainActivity → 持久 Compose NavHost** + `SubScreen` sealed-class 栈 | 现 MainActivity 是 one-shot launcher (login→finish)；需要变成可重入、可栈式 drill-in 的持久 Activity。Halo Ring 模式直接搬。|
+| **D4 物理键导航** | 复用 Glass 的 SystemKeyReceiver；映射到 Compose 焦点 + 命令: `TWO_FINGER_SWIPE_FORWARD/BACK` = 焦点上/下 (`requestFocus` next/prev)；`CLICK` = 激活当前 `FocusableRow` (= onClick)；`LONG_PRESS` = 同 CLICK 备用；`DOUBLE_CLICK` = back (pop nav stack；空栈则退到 launcher) | C-38 已定的物理键映射就是这些。无键盘、无触屏 = 焦点 + 单按键确认是唯一可行模式。Halo Ring 的 `FocusableRow` 就是 explicitly 设计给这套。|
+| **D5 存储** | Cookie / endpoint URL / app prefs = DataStore；shortcuts = Cortex Twin (`twin/skills/shortcuts.md`) | endpoint runtime 可改 (你已确认)；shortcuts 走 Twin 因为 Cortex router + Halo Ring ContentProvider 都要读 |
+| **D6 Service handoff** | MainActivity onResume → Service "暂停"HUD 推送 (state stays Idle)；MainActivity onPause → Service 立即恢复 | 同一块 panel 同一时刻只能渲染一个东西。MainActivity 前台时占面板做 settings；用户双击退出后 Service 接管。|
+| **D7 测试连接走 `/api/ping`** | 新加 Cortex 轻量 endpoint：`POST /api/ping` → 立即 `{ok, server_bound, tool_conn, ts}`。Connect 屏 "TEST CONNECTION" 调它。 | 你已确认。不触发 router / dispatch；几毫秒返回；和 `GET /api/health` 等价但 `POST` 把它当成 "user action" 记一次 metric。|
+| **D8 Halo Ring hint 文案** | 主屏底部改写为 "Pair Halo Ring for ring-gesture shortcuts" | 你已确认；optional enhancement 定位 |
 
 ---
 
 ## 3. 信息架构
 
 ```
-MainActivity (NavHost)
+MainActivity (Compose NavHost; 持久；接管 panel)
 │
-├─ MainScreen  (route = "main")             ← 默认 home
-│  │
-│  ├─ Status block (top)
-│  │  - "Connected to Cortex" (绿点) / "Offline" (橙点)
-│  │  - Endpoint snippet (wss://edge.example.com/ws/glass)
-│  │  - Stats: invokes total · last activity
-│  │
-│  └─ Drill-in rows
-│     - Shortcuts        ── (P3)
-│     - Connect to Cortex ── ConnectScreen
-│     - About            ── AboutScreen
-│
-├─ ConnectScreen (route = "connect")        ← P1 必有
-│  - Endpoint URL (read-only, monospace)
-│  - Connection status (live, polls /api/health)
-│  - Cookie status (persisted ✓)
-│  - Last invoke (timestamp)
-│  - [TEST CONNECTION] button  ── POSTs /api/test/invoke {"text":"ping"} + waits for hud_state
-│  - [LOG OUT] button (clears cookie, kills service, back to login)
-│
-├─ AboutScreen (route = "about")            ← P2
-│  - App name / version / build flavor
-│  - "Open source" + repo link
-│  - "Made with " line
-│
-├─ ShortcutsListScreen (route = "shortcuts")  ── P3
-└─ ShortcutEditorScreen (route = "shortcut/{id}") ── P3
-
-LoginScreen (modal, first run only — current MainActivity inline UI lifted into Composable)
+├─ Login (sealed-class state: NotLoggedIn) ──┐  ← 第一次启动，无 cookie 时
+│  - 密码输入 (TYPE_TEXT_VARIATION_PASSWORD)  │
+│  - 单按 CLICK = submit                     │
+│  - 成功 → 转 Main                          │
+│                                            │
+└─ Authenticated (state: LoggedIn) ──────────┘
+   │
+   └─ NavStack (LIFO of SubScreen)
+      │
+      ├─ Main          (route = Main)
+      │  - Status block (live)
+      │  - Drill-in rows (Shortcuts / Connect / About / Shortcuts-bind-hint)
+      │
+      ├─ Connect       (route = Connect)
+      │  - Endpoint URL (read-only display + [EDIT])
+      │  - Connection status / last invoke
+      │  - [TEST CONNECTION] CTA
+      │  - [LOG OUT] CTA (clears cookie → back to Login)
+      │
+      ├─ EditEndpoint  (route = EditEndpoint)
+      │  - Text input for new URL
+      │  - [SAVE] / [CANCEL]
+      │
+      ├─ About         (route = About)
+      │  - app name / version / flavor / git sha
+      │  - "Open source" + repo
+      │  - "by Zack 紫意"
+      │
+      ├─ ShortcutsList (route = Shortcuts)         ← P3
+      │  - Saved shortcuts (FocusableRow each)
+      │  - [+ NEW SHORTCUT]
+      │
+      └─ ShortcutEditor(route = ShortcutEdit{id})  ← P3
+         - Name field
+         - Preset prompt (multi-line)
+         - Capture toggles (photo / mic)
+         - [SAVE] / [DELETE]
 ```
 
-**Login 流程**：app 第一次启动 → 检查 cookie → 无则显示 LoginScreen → 输入密码 → POST `/api/auth/login` → 存 cookie → 跳转 MainScreen + 启动 Service。
-
-**已登录流程**：app 启动 → 直接 MainScreen + Service 已运行（如果 ConstellationService 还活着不重启）。
+**Back semantics**: DOUBLE_CLICK pops one entry off NavStack. Empty stack + DOUBLE_CLICK = `moveTaskToBack(true)` → 返回 launcher。**Service 不退**——后台继续维持 WSS。
 
 ---
 
-## 4. 持久化
+## 4. 物理键 → Compose 焦点桥接
 
-| 数据 | 存储 | 现状 |
-|---|---|---|
-| Cookie (`console_session=...`) | `SharedPreferences` via `CookieStore` | ✅ 已存在 |
-| Cortex endpoint URL | `BuildConfig.WSS_URL` (compile time) → 移到 DataStore (runtime) | ⏸ 当前 hardcode 在 build.gradle.kts |
-| Connection stats缓存 | 不持久；每次进 Connect screen 时 `GET /api/health` | — |
-| Shortcuts | Cortex 端 `~/constellation/twin/skills/shortcuts.md` (markdown frontmatter list) | ⏸ P3, schema 待设计 |
-| 用户偏好（暂无）| — | 设计上没有 user-tunable HUD 偏好 (defaults handle) |
+复用 Halo Ring 的 `TempleFocusBridge` 模式（按键事件 → Compose `FocusManager` 调用）。
 
-**Endpoint URL 从 BuildConfig 改到 DataStore**: 这是个有意义的设计变化 —— 让 user 可以在 Connect 屏改 endpoint 而不重新编译 APK。简单 DataStore.Preferences with key `cortex_endpoint`, default = 当前 BuildConfig.WSS_URL.
+```kotlin
+// MainActivity 内 registerReceiver
+when (key) {
+    SPRITE_BUTTON_CLICK         -> focusedRowOnClick()  // 激活当前焦点
+    SPRITE_BUTTON_LONG_PRESS    -> focusedRowOnClick()  // 备用，同 CLICK
+    SPRITE_BUTTON_DOUBLE_CLICK  -> popNavStackOrExit()
+    TWO_FINGER_SWIPE_FORWARD    -> focusManager.moveFocus(FocusDirection.Down)
+    TWO_FINGER_SWIPE_BACK       -> focusManager.moveFocus(FocusDirection.Up)
+    TWO_FINGER_SINGLE_TAP       -> /* P3: 次选 / context action */
+    TWO_FINGER_DOUBLE_TAP       -> popNavStackOrExit()  // 备用 back
+}
+```
+
+Compose 端用 `FocusableRow`（直接抄 Halo Ring 的 `Components.kt`，去掉 Material3 import 改成 BasicText）：
+- 每行 `Modifier.onFocusChanged + clickable + 视觉高亮`
+- `clickable` 隐含 `focusable`；DPAD 系统按键 `DPAD_CENTER` 自动触发 onClick
+- 焦点高亮 = 2dp 左侧绿条 + 7% 绿底色
+
+**HudHud 同 Activity 的关系**：见 §6 Service handoff。
 
 ---
 
-## 5. Cortex 端 API 现状 + 需要补的
+## 5. 屏幕级 Compose 设计
+
+### 5.1 共享 chrome (`AppChrome.kt`)
+
+```kotlin
+@Composable
+fun AppChrome(
+    title: String,
+    onBack: (() -> Unit)? = null,
+    cortexConnected: Boolean,
+    content: @Composable () -> Unit,
+) {
+    Column(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
+        Row {
+            ConnectionDot(connected = cortexConnected)
+            Spacer(Modifier.width(8.dp))
+            BasicText("Constellation",
+                      style = TextStyle(fontSize = HudTheme.metaSize, color = HudTheme.fg))
+            Spacer(Modifier.weight(1f))
+            BasicText(title,
+                      style = TextStyle(fontSize = HudTheme.footerSize, color = HudTheme.fgDim))
+        }
+        Spacer(Modifier.height(16.dp))
+        content()
+    }
+}
+```
+
+### 5.2 MainScreen.kt（mockup §2.1）
+
+```
+┌──────────────────────────────┐
+│ ● Constellation         MAIN │  ← chrome (live ●)
+├──────────────────────────────┤
+│ ╔══════════════════════════╗ │
+│ ║ ● Connected to Cortex    ║ │  ← status block (focusable;
+│ ║ wss://edge.example…  ║ │     CLICK → Connect screen)
+│ ║ 12 invokes · 3 min ago   ║ │
+│ ╚══════════════════════════╝ │
+│                              │
+│ ▌ Shortcuts          3 ›    │  ← FocusableRow x4
+│   Connect to Cortex     ›    │
+│   About                 ›    │
+│                              │
+│ Pair Halo Ring for           │  ← bottom hint (dim, not focusable)
+│ ring-gesture shortcuts       │
+└──────────────────────────────┘
+```
+
+Status block 自己也是 `FocusableRow`（CLICK = drill into Connect）—— 单一 entry point 不重复。
+
+### 5.3 ConnectScreen.kt（mockup §2.4）
+
+```
+┌──────────────────────────────┐
+│ ←● Constellation     CONNECT │
+├──────────────────────────────┤
+│ Connect to Cortex            │
+│ Edge endpoint — WSS to Mac.  │
+│                              │
+│ ╔══════════════════════════╗ │
+│ ║ wss://edge.example.com║ │  ← FocusableRow (CLICK = EditEndpoint)
+│ ║ /ws/glass                ║ │
+│ ╚══════════════════════════╝ │
+│                              │
+│ Status:        ● connected   │  ← live, polls /api/ping every 5s
+│ Cookie:        persisted ✓   │
+│ Last invoke:   3 min ago     │
+│                              │
+│ ┃ TEST CONNECTION    ┃       │  ← Cta button (focusable)
+│                              │
+│ ┃ LOG OUT            ┃ ⚠      │  ← danger Cta
+└──────────────────────────────┘
+```
+
+`TEST CONNECTION` 调 `POST /api/ping`，5s 超时；返回结果通过短暂的"toast"行（fixed位置，2s 自动消失）显示。
+
+### 5.4 EditEndpointScreen.kt
+
+简单单行 BasicTextField + [SAVE] / [CANCEL]。SAVE = 写入 DataStore，然后 push 事件给 ConstellationService 重连 WSS。
+
+### 5.5 AboutScreen.kt
+
+```
+┌──────────────────────────────┐
+│ ←● Constellation       ABOUT │
+├──────────────────────────────┤
+│ Constellation                │
+│ v0.2.0-pivot-baremetal       │
+│ flavor: glass · sha: a921cbe │
+│                              │
+│ A constellation of senses,   │
+│ one mind.                    │
+│                              │
+│ by Zack 紫意                  │
+│                              │
+│ Free & open source           │
+│ github.com/MRziyi/…          │
+└──────────────────────────────┘
+```
+
+无 focusable rows（信息屏）。CLICK 在此屏 = 空操作；DOUBLE = back.
+
+### 5.6 LoginScreen.kt
+
+单密码字段（沿用现 MainActivity 的密码输入逻辑），CLICK 在 input 内 = submit。
+
+---
+
+## 6. Service ↔ MainActivity handoff
+
+同一块 480×640 panel 同一时刻只能渲染一个 Activity。问题：MainActivity 在前台时，Service 推 `hud_state` 让 `GlassHudActivity` 启动会**抢走 panel**。
+
+**解决**：MainActivity 暴露一个静态 flag `MainActivity.isForeground: AtomicBoolean`。
+
+- `MainActivity.onResume()`: `isForeground.set(true)`；可选广播 `INTENT_HUD_PAUSE` 让 Service 知道暂时不要 launch HUD Activity
+- `MainActivity.onPause()`: `isForeground.set(false)`；Service 恢复正常
+- `ConstellationService` 的 `GlassHudSurface.bringActivityToFront()` 加判断：
+  ```kotlin
+  private fun bringActivityToFront() {
+      if (MainActivity.isForeground.get()) {
+          Timber.i("GlassHudSurface · MainActivity foreground, skipping HUD launch")
+          return  // 状态 snapshot 还是更新了；MainActivity 关闭后下次状态变化会重新 bring up
+      }
+      // ... 现有 startActivity
+  }
+  ```
+
+这样 user 进 settings 不会被 HUD 弹出打断；退 settings 后下次 invoke 自然回 HUD。
+
+---
+
+## 7. Cortex 端 API 现状 + 需要补的
 
 ### 已有（够用）
 
 | Endpoint | 用途 |
 |---|---|
-| `GET /api/health` | 拿 server_bound / tool_conn / stats.dispatches_total 等 — 喂 Main 屏 status block |
-| `POST /api/auth/login` | 已有 cookie auth |
-| `POST /api/test/invoke {"text":"ping"}` | "Test connection" 按钮的实现 — 已经 work |
-| `GET /api/sessions?status=active` | 列出最近会话 / 时间戳 — 可以从这里抽 "last invoke" |
+| `GET /api/health` | 主屏 status block 信息源（server_bound / tool_conn / stats.dispatches_total）|
+| `POST /api/auth/login` | Login |
+| `GET /api/sessions?status=active` | 拿 last invoke 时间戳 |
 
-### Phase 3 需要新加（shortcuts）
+### Phase A 新增（小）
 
 | Endpoint | 行为 |
 |---|---|
-| `GET /api/shortcuts` | 列出 twin 里所有 shortcuts (parse `skills/shortcuts.md` frontmatter) |
-| `POST /api/shortcuts` | 新建 shortcut (name + prompt + capture flags) → 写 twin |
+| `POST /api/ping` | 立即返回 `{ok: true, server_bound, tool_conn, ts}`。**不**走 router / dispatcher。Connect 屏 TEST CONNECTION 调它。|
+
+### Phase D 新增（shortcuts）
+
+| Endpoint | 行为 |
+|---|---|
+| `GET /api/shortcuts` | 读 `~/constellation/twin/skills/shortcuts.md` 的 frontmatter list |
+| `POST /api/shortcuts` | 新建 (name + prompt + capture flags) |
 | `PUT /api/shortcuts/{id}` | 更新 |
 | `DELETE /api/shortcuts/{id}` | 删除 |
 
-**Twin shortcuts schema**（提议）:
+**Twin shortcuts schema**:
 ```markdown
 ---
 id: quick-capture-person
 name: Quick capture person
-mode: photo               # photo / mic / both / none
+photo: true
+mic: false
 created: 2026-05-26
 ---
 
@@ -124,148 +285,45 @@ Identify this person. If matches `people/core/`, surface archive.
 If unknown, propose adding to `people/encounters.md`.
 ```
 
-Shortcuts 走 Twin 不走 SharedPreferences 的理由：(a) Cortex 本身也要读它（用户语音触发 shortcut 时 router 需要 prompt template）; (b) Halo Ring app 通过 [halo-ring-plugin-protocol](../cross-device/halo-ring-plugin-protocol.md) ContentProvider 查 shortcuts 列表 → 需要服务端可访问。
+---
+
+## 8. phoneDebug flavor
+
+phoneDebug 的 in-app UI = **跟 glass flavor 完全相同的 Composable**，只是 host 是常规手机 Activity（无 panel 透明 theme，无 SystemKeyReceiver；用 touch 触发 onClick + 后退键 = DOUBLE 等价）。
+
+**为什么不让 phoneDebug 享受触屏 native 体验？** 维护两套 UI 不划算。phoneDebug 的目的是开发回归——保证 settings UI 跟眼镜上看到的**一样**，反过来更好。Touch 等价于 CLICK + 后退键等价于 DOUBLE_CLICK。Swipe 用 LazyColumn 自然滚动取代 SWIPE_FORWARD/BACK 焦点切换。
 
 ---
 
-## 6. 屏幕级 Compose 设计（Phase 1 起手）
+## 9. 分阶段实施提议
 
-每屏用 sealed-class route + 一个 `@Composable fun Screen()`。共享 Theme + 顶部 status bar。
-
-### 6.1 共享 chrome (`AppChrome.kt`)
-
-```kotlin
-@Composable
-fun AppChrome(title: String, onBack: (() -> Unit)? = null, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (onBack != null) {
-                BasicText("←", style = TextStyle(fontSize = 20.sp, color = HudTheme.fg),
-                          modifier = Modifier.clickable(onClick = onBack).padding(end = 12.dp))
-            }
-            ConnectionDot()  // 绿/橙小点
-            BasicText(" Constellation", style = TextStyle(fontSize = 14.sp, color = HudTheme.fg))
-            Spacer(Modifier.weight(1f))
-            BasicText(title, style = TextStyle(fontSize = 11.sp, color = HudTheme.fgDim))
-        }
-        Spacer(Modifier.height(20.dp))
-        content()
-    }
-}
-```
-
-### 6.2 MainScreen.kt
-
-```
-┌──────────────────────────────┐
-│ ● Constellation         v0.2 │  ← chrome
-├──────────────────────────────┤
-│ ╔══════════════════════════╗ │
-│ ║ ● Connected to Cortex    ║ │  ← status block
-│ ║ wss://edge.example…  ║ │  (border-only frame)
-│ ║ 12 invokes · 3 min ago   ║ │
-│ ╚══════════════════════════╝ │
-│                              │
-│  Shortcuts        3 saved  › │  ← row drill-ins
-│  Connect to Cortex         › │
-│  About                     › │
-│                              │
-│  Halo Ring is optional ‣     │  ← bottom hint
-└──────────────────────────────┘
-```
-
-Status block tap = goes to Connect (deep dive); rows go to respective screens.
-
-### 6.3 ConnectScreen.kt
-
-```
-┌──────────────────────────────┐
-│ ←  ●  Constellation    CONN  │
-├──────────────────────────────┤
-│ Connect to Cortex            │
-│ Edge endpoint — WSS to Mac.  │
-│                              │
-│ EDGE ENDPOINT                │
-│ ╔══════════════════════════╗ │
-│ ║ wss://edge.example.com║ │
-│ ║ /ws/glass                ║ │
-│ ╚══════════════════════════╝ │
-│                              │
-│ Connection status  ● connected│
-│ Cookie             persisted ✓│
-│ Last invoke        3 min ago │
-│                              │
-│ [   TEST CONNECTION   ]      │
-│                              │
-│ Edge → Tailscale → Mac.      │
-└──────────────────────────────┘
-```
-
-`TEST CONNECTION` 按钮：调 `/api/test/invoke {"text":"ping","modality":"text"}` → 等 5s 看 `WssClient` 是否收到任何 hud_state frame → toast "OK" 或 "Timeout"。
-
-### 6.4 AboutScreen.kt
-
-短截，~6 行：name / version / "free & open source" / repo link / "by Zack 紫意" / build flavor + git sha (BuildConfig)。
-
-### 6.5 Phase 3 ShortcutsListScreen / ShortcutEditorScreen
-
-延后，等 D5 决议+ Cortex 协议+ Twin schema 实施后再设计具体 Compose。Mockup 提供视觉参考。
-
----
-
-## 7. Glass flavor 上怎么处理
-
-眼镜的 480×640 portrait panel 上根本塞不下 settings screens（截屏证明）—— **glass flavor 上 in-app UI 只保留**:
-
-```
-┌──────────────────────────────┐
-│ ● Constellation (running)    │
-│                              │
-│ HUD is active.               │
-│                              │
-│ Open the phone app to        │
-│ configure shortcuts, change  │
-│ the Cortex endpoint, etc.    │
-│                              │
-│              · v0.2.0 ·      │
-└──────────────────────────────┘
-```
-
-唯一的入口 = LoginScreen 第一次配置 + 这个状态屏。所有 setting / shortcut 编辑都在 phoneDebug 上做（或者未来 web Console）。
-
-**为什么不在 glass flavor 上也实现 settings？** 480×640 portrait + 单镜 + 无触屏 + 无键盘 = 任何编辑操作都极难。不如让眼镜专注于 HUD，配置走配对手机。
-
----
-
-## 8. 分阶段实施提议
-
-| Phase | 内容 | 工作量 | 价值 |
+| Phase | 内容 | 工时 | 价值 |
 |---|---|---|---|
-| **P-app.A** | 把 MainActivity 重写为 Compose NavHost；LoginScreen + MainScreen + ConnectScreen + 共享 chrome + DataStore 接入 endpoint URL | 4-5h | **高** — Connect 屏对调试连接极有用；Main 给"我的 Cortex 还活着吗"一个肉眼答案 |
-| **P-app.B** | AboutScreen | 30 min | 低 |
-| **P-app.C** | Glass flavor 上的"running"屏 | 1 h | 中（眼镜端打开 app 不再是空登录） |
-| **P-app.D** | Shortcuts list + editor + Cortex `/api/shortcuts` endpoints + Twin schema + Halo Ring ContentProvider 注册 | 1-2 days | **高** — 这是用户在 ui-mockup §2 主要画的功能 |
+| **P-app.A 基础设施** | MainActivity → Compose NavHost；`SubScreen` sealed；`FocusableRow` 端口（去 Material3 → BasicText）；`AppChrome` 共享 frame；DataStore endpoint 持久化；LoginScreen + MainScreen + ConnectScreen + EditEndpointScreen + Service handoff (`isForeground` flag) | **6-8 h** | **必须做的** —— 没这层后面什么都进不去 |
+| **P-app.B Cortex `/api/ping`** + TEST CONNECTION 接入 | Cortex 加 endpoint；Glass Connect 屏调它 | **1 h** | 高 —— Connect 屏才有用 |
+| **P-app.C AboutScreen** | 静态信息屏 | **30 min** | 低 |
+| **P-app.D Shortcuts** (大) | ShortcutsList + ShortcutEditor + Cortex `/api/shortcuts` (GET/POST/PUT/DELETE) + Twin `skills/shortcuts.md` schema + 解析器 + 写入器 + Halo Ring ContentProvider 注册（按现有 plugin protocol） | **1-2 day** | **高** —— mockup §2 主要功能 |
 
-**推荐顺序**: A → B → C → D。**D 是大块**（涉及 Cortex 协议 + Twin schema + Halo Ring 集成），单独成 ticket。
-
----
-
-## 9. Open questions
-
-- **OQ-app-1**: Endpoint URL 是否真的需要 user-editable? 你目前部署是 `wss://edge.example.com/ws/glass` 写死的。如果不打算多端切换，BuildConfig 也够。**默认假设可编辑**（D4）。
-- **OQ-app-2**: Connect 屏 "TEST CONNECTION" 按钮要走整套 `/api/test/invoke` (会触发 router + tool dispatch)，还是搞个**新的轻 ping endpoint** `/api/ping` 只返回 200 + tool_conn 状态？后者更便宜。倾向后者。
-- **OQ-app-3**: Logout 时是否真的杀 Service？还是只清 cookie？倾向：清 cookie + 让 Service 自己 close WSS 然后进 Offline 状态等下次 cookie 来。
-- **OQ-app-4**: Halo Ring 在 v2.1 是 optional —— 主屏底部的 "Halo Ring is optional" hint 是合适的还是误导？(如果用户没装 Halo Ring，shortcuts 仍然有用 —— 可以通过 voice "do my [quick capture person]" 触发；只是没有 gesture 触发渠道)
-- **OQ-app-5**: P3 Shortcuts 改不改影响 P3.1 (Halo Ring profile push)？需要先看 P1.7 Halo Ring profile 协议契约才能决定 Shortcuts 是否要发布 push 信号。
+**推荐顺序**: A → B → C → D。A+B+C 是一个 sitting；D 单独成 ticket。
 
 ---
 
-## 10. 完成定义（P-app.A 至少）
+## 10. Open questions（剩 2 个）
 
-✅ 打开 app（phoneDebug 在一加上） → 已登录的情况下直接进 MainScreen
-✅ MainScreen 顶部状态块实时反映 cortex `/api/health` (绿/橙点 + endpoint + invoke 计数)
-✅ Connect screen 可以看到当前 endpoint URL，可以改并保存到 DataStore
-✅ Connect screen 的 "TEST CONNECTION" 按钮真的能 ping 通并显示结果
-✅ Back nav 正常工作 (硬件返回键 + chrome 上的 ← 都行)
-✅ glass flavor build clean (即使内部其实是 "running" 极简屏)
+- **OQ-app-1** ~~endpoint 编辑性~~ → 已定**可编辑**（D5）
+- **OQ-app-2** ~~TEST 用哪个 endpoint~~ → 已定**新加 `/api/ping`**（D7）
+- **OQ-app-3** Logout 时是否真杀 Service？倾向**只清 cookie**——WSS 自己进 Offline → 401 → 回 NotLoggedIn 状态。Service 进程不死，下次 login 不需要重启 Service。
+- **OQ-app-4** ~~Halo Ring hint 文案~~ → 已定 "Pair Halo Ring..."（D8）
+- **OQ-app-5** Shortcuts 在 Halo Ring 视角下如何注册？ —— P3 阶段再回答，需要先看 `halo-ring-plugin-protocol.md` 现状。
 
+---
+
+## 11. 完成定义（P-app.A 至少）
+
+✅ 眼镜 / 一加上打开 app icon → MainActivity 拉起 + 直接进 MainScreen（已登录）或 LoginScreen（未登录）
+✅ Status block 实时反映 `/api/health`（绿/橙点 + endpoint snippet + invoke count）
+✅ Connect 屏可看 / 改 endpoint，DataStore 持久化，编辑后 WSS 自动重连
+✅ TEST CONNECTION (Phase B 接好 `/api/ping` 后) 真能 ping 通并显示结果
+✅ DOUBLE_CLICK 在 root 退到 launcher；MainActivity 进入前台时不与 HUD 抢面板
+✅ 一加上同套 UI 用 touch + back 键操作可用
+✅ glass + phoneDebug 两个 flavor 都 build clean
