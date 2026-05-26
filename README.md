@@ -41,7 +41,8 @@ Repo layout (post-2026-05-26 reorg): top-level entry points (`README.md`, `HANDO
 ### Glass client (Phase 3b — in progress 🔥)
 - [GLASS-CLIENT-DESIGN.md](docs/glass/GLASS-CLIENT-DESIGN.md) v2.1 — bare-metal Android Go app design (supersedes the older CXR-L bridge plan).
 - [GLASS-SDK-REFERENCE.md](docs/glass/GLASS-SDK-REFERENCE.md) — **Rokid Glasses SDK 速查**（audio / keys / display / FGS / 不用的 SDK + 真机验证清单）；写代码时先翻这个，不必每次回 `reference/` 翻原始 doc。
-- [P1.6-COMPOSE-MIGRATION.md](docs/glass/P1.6-COMPOSE-MIGRATION.md) — **当前进行中** 🔧：Compose 迁移 + phoneDebug 眼镜模拟器 7 阶段实施计划。
+- [P1.6-COMPOSE-MIGRATION.md](docs/glass/P1.6-COMPOSE-MIGRATION.md) — Compose 迁移 + phoneDebug 眼镜模拟器 7 阶段实施计划 ✅ landed 2026-05-26.
+- [IN-APP-UI-DESIGN.md](docs/glass/IN-APP-UI-DESIGN.md) — **当前设计中** 🎨：应用内 UI (Main / Connect / About / Shortcuts) 4 屏架构 + 分阶段实施提议。
 - [MIGRATION-PLAN.md](docs/glass/MIGRATION-PLAN.md) — v2.0 → v2.1 migration steps + verification checklist.
 - [UI-UX.md](docs/glass/UI-UX.md) — HUD design + visual language (v2.1 annotations applied).
 - [reference/INDEX.md](reference/INDEX.md) — raw SDK / 文档源码（Rokid + whisper + Halo Ring）；GLASS-SDK-REFERENCE 是它的"工作答疑层"。
