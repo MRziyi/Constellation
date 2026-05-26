@@ -35,11 +35,16 @@ If you're an AI agent picking this up after a context handoff: **open [HANDOFF.m
 - [TOOL-ADAPTERS.md](TOOL-ADAPTERS.md) v0.2 — catalog of 12 live adapters (claude_code dual-track / 4 AppleScript / fs / apple_notes / system_status / apple_shortcuts / twin_query / imessage / safari_state / echo)
 - [UI-UX.md](UI-UX.md) v0.3 — HUD design + always-on mic + multi-step visual treatment
 
+### Glass client (Phase 3b — in progress)
+- [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 — bare-metal Android Go app design (supersedes the older CXR-L bridge plan)
+- [MIGRATION-PLAN.md](MIGRATION-PLAN.md) — v2.0 → v2.1 migration steps + verification checklist
+- [reference/INDEX.md](reference/INDEX.md) — local mirror of Rokid + whisper + Halo Ring SDK source, plus curated bare-metal docs
+
 ### Cross-app integration
-- [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) — protocol for Constellation to register actions with Halo Ring (Halo Ring side ✓ shipped)
+- [halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md) — protocol for Constellation to register actions with Halo Ring (Halo Ring side ✓ shipped; v2.1 makes it **optional**, not required)
 
 ### Roadmap & handoff
-- [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md) v0.3 — 10 phases (Phase 1+2+R-3 ✓ done; Phase 5 demoed early; Phase 3 next)
+- [IMPLEMENTATION-PLAN.md](IMPLEMENTATION-PLAN.md) v0.3 — 10 phases (Phase 1+2+R-3 ✓ done; Phase 5 demoed early; Phase 3b in progress)
 - [HANDOFF.md](HANDOFF.md) — for the next AI agent picking up the project
 
 ### Visual + brand
@@ -55,20 +60,21 @@ If you're an AI agent picking this up after a context handoff: **open [HANDOFF.m
 - [test-harness/](test-harness/) — fake-Glass simulators (12 test scripts, all PASS)
 - [scripts/](scripts/) — install scripts + launchd plists
 
-## Status (2026-05-24)
+## Status (2026-05-26)
 
 | Phase | Status |
 |---|---|
-| Design (all docs at green: SoT, DESIGN v0.8, IC v0.6, Component v0.3, Data v0.2, UI v0.3, Router v0.2, Tools v0.2, IMPL v0.3) | ✓ ship-ready |
-| Halo Ring plugin protocol | ✓ shipped |
+| Design (SoT through Revision 7 + GLASS-CLIENT-DESIGN v2.1) | ✓ green |
+| Halo Ring plugin protocol | ✓ shipped (now optional companion per v2.1) |
 | Phase 1 (Mac spine + launchd cycle) | ✓ verified end-to-end |
-| Phase 2 (12 adapters + UC1 wall-clock + confirm-policies enforced) | ✓ verified end-to-end (UC1 5/5 PASS, mean 3.9s) |
-| **R-3 paradigm** (multi-step task + always-mic + free-form feedback) | ✓ verified (3/3 deep-test PASS) |
-| **Phase 5 UC2 reverse-wake** (real Claude Code permission prompt) | ✓ demoed early end-to-end |
-| Phase 3 (Android phone client) | ⏸ next — needs always-mic per C-22 + Tailscale on Mac mini |
+| Phase 2 (12 adapters + UC1 wall-clock + confirm-policies enforced) | ✓ verified end-to-end |
+| **R-3 paradigm** (multi-step + always-mic + free-form feedback) | ⚠️ partially superseded by C-22 ripout (P1.1) + v2.1 mic-on-button-only (C-37) |
+| Phase 5 UC2 reverse-wake | ✓ demoed early end-to-end |
+| **Phase 3b Glass client** | 🟡 in progress — bare-metal pivot (v2.1) on branch `pivot/baremetal-v2.1` in `Constellation-Glass`; both `glass` + `phoneDebug` flavors build; protocol verified via phoneDebug; real-device deploy pending (P1.5) |
+| Cortex Level 2 streaming partials | ✓ shipped |
 | Phases 4 / 6 / 7 / 8 / 9 | ⏸ pending |
 
-Detailed status: [HANDOFF.md §1](HANDOFF.md) + [IMPLEMENTATION-PLAN.md §1 status table](IMPLEMENTATION-PLAN.md).
+Detailed status: [HANDOFF.md §1](HANDOFF.md) + [TODO.md](TODO.md) + [SOURCE-OF-TRUTH.md Revision 7](SOURCE-OF-TRUTH.md).
 
 ## Project paths
 

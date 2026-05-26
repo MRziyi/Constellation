@@ -1,9 +1,13 @@
 # Constellation — UI/UX Design
 
-**Version**: v0.3
-**Status**: 设计阶段 → R-3 paradigm 落地 (always-mic + multi-step yield)；Phase 3 客户端实施前的最后一版 spec
-**关联文档**: [DESIGN.md](DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · **[Doc/ui-mockup.html](Doc/ui-mockup.html)** (视觉 ground truth) · **[halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md)** (跨 app 协议) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md)
-**Last updated**: 2026-05-24
+**Version**: v0.4 (v2.1 pivot annotation)
+**Status**: Phase 3b 实施中. **Glass 端的硬件 / SDK / 交互方式已迁到 [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1** — 本文档保留 web HUD 的设计原则 + 跨 surface 共享语言。Glass 物理输入 / 渲染 / 音频细节看 GLASS-CLIENT-DESIGN.md.
+**关联文档**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 · [DESIGN.md](DESIGN.md) · [INTERFACE-CONTRACTS.md](INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](COMPONENT-DESIGN.md) · [DATA-MODEL.md](DATA-MODEL.md) · **[Doc/ui-mockup.html](Doc/ui-mockup.html)** (视觉 ground truth — v0.3 内容; §1 由 GLASS-CLIENT-DESIGN.md v2.1 supersede) · **[halo-ring-plugin-protocol.md](halo-ring-plugin-protocol.md)** (现在是 optional companion) · [CORTEX-ROUTER-PROMPT.md](CORTEX-ROUTER-PROMPT.md)
+**Last updated**: 2026-05-26 (v2.1 pivot annotation)
+
+> ⚠️ **v2.1 pivot note** (2026-05-26): 原 §5 "Cross-app integration (Halo Ring Plugin Protocol)" 部分内容已**降级为 optional companion** — Glass 端物理触控板按键直接覆盖所有交互需求（单击/长按/双击/双指）。Halo Ring 仍可作为额外的环形手势输入，但不再是 HUD 设计的依赖前提。详见 [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 §2.2 + `reference/rokid-glass/bare-metal-docs/01-key-events.md`.
+>
+> 原 §3.4 "always-on mic per card" 也已**撤销**（与 v2.1 能效约束冲突）：mic 现在只在用户主动按物理键开启，15s hard cap 自动关闭。
 
 Constellation Glass 端的 UI/UX 文字落地。视觉细节看 [Doc/ui-mockup.html](Doc/ui-mockup.html)——它是 1:1 ground truth。**本文件只承载决策、原则、跨文档引用**，避免重复 mockup 里的视觉描述。
 
@@ -15,10 +19,10 @@ Constellation Glass 端**只两个 surface**：
 
 | Surface | 占比 | 触发 |
 |---|---|---|
-| **HUD overlay** | **99% 的交互** | 用户全局手势 / Cortex 主动推 / Tool 反向 wake |
+| **HUD overlay** | **99% 的交互** | 用户主动触控（单击/长按/双击/双指）/ Cortex 主动推 / Tool 反向 wake |
 | **App 设置页** | 月度调一次 | 用户手动开 app (改 Cortex IP / shortcut 内容) |
 
-**所有手势 / profile / 绑定都不在 Constellation 内**——全部由 **Halo Ring** 通过 [Plugin Protocol](halo-ring-plugin-protocol.md) 管理。Constellation 只**声明**自己能做哪些 actions，被触发时**接收** Intent。
+**Glass 物理触控板/按键是主输入路径**（v2.1）；Halo Ring 仍可作为 optional 增强（如果配套环装了），通过 [Plugin Protocol](halo-ring-plugin-protocol.md) 推 profile。Constellation 声明自己能做哪些 actions，被触发时接收 Intent。
 
 ---
 

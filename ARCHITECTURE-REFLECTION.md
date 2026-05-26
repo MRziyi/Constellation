@@ -183,16 +183,22 @@ hangs.
 osascripts on cortex startup, surfaces "TCC required" card if any fails.
 Not urgent but eventually annoying.
 
-### 10. The HUD is the only client
+### 10. The HUD is the only client *(superseded 2026-05-26 by v2.1 pivot)*
 
-We have a phone-friendly PWA. No Glass client, no native iOS, no terminal.
-The whole project's name and design pretends we're building for AR glasses.
-We've built infrastructure assuming many clients (WSS protocol, push
-notifications, Twin shareable) and only have one.
+~~We have a phone-friendly PWA. No Glass client.~~
 
-This isn't a brittleness problem so much as a "we keep deferring the
-actual envisioned use case" problem. Phase 3b (Android-native) and
-Phase 4 (Rokid Glass) keep slipping.
+**Status now**: Phase 3b Glass client (`Constellation-Glass` repo, branch
+`pivot/baremetal-v2.1`) is well underway. After getting most of v2.0 done
+(CXR-L bridge path) we discovered CXR-L is actually a phone-side SDK; the
+correct path is bare-metal Android Go directly on the R08 glass. Code
+was reworked into `glass` + `phoneDebug` product flavors with a clean
+`HudPlatformAdapter` abstraction. Both flavors compile; phoneDebug
+verifies the protocol on a regular phone (OnePlus 9). Real-device deploy
+on R08 is gated on getting a dev-cable (P1.5 in TODO.md).
+
+The "abstraction creak" we were worried about (multi-client WSS protocol
+written for one client) actually paid off: the same Cortex code serves
+both web HUD and Glass with no per-client branching.
 
 ---
 
@@ -277,11 +283,12 @@ The smaller fixes (rip out R-3, prune vestigial actions, archive old
 sessions, swap classifier to haiku, TCC self-check, prompt caching) are
 all 1-2 hour items individually.
 
-The real product gap remains **the Glass client**. We've built
-infrastructure for it but no glasses. Phase 3b (Android-native) is the
-next "actual envisioned use case" step.
+The real product gap was **the Glass client**. Phase 3b is now mid-flight
+on branch `pivot/baremetal-v2.1` in `Constellation-Glass`. After v2.1
+real-device deploy (P1.5), the gap closes.
 
 ---
 
 *Written 2026-05-26 after multiple dogfooding sessions revealed where
-the abstractions creak. Re-read before any next-phase refactor.*
+the abstractions creak. Annotated 2026-05-26 (same day) post-v2.1 pivot.
+Re-read before any next-phase refactor.*

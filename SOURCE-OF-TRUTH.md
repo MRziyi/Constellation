@@ -627,3 +627,66 @@ Phase 2/3a 收尾后 Zack 在 v0.5 multi-step + 12-adapter 路径上做了几次
 - **OQ-R6-3**: P3.1 (collapse Tool Agent into Cortex) — 时机？当 (a) tool-agent IPC 成为可观察的延迟来源 (现在不是), 或 (b) launchd 双进程管理出 bug 频次升高 (现在没出), 才开工. 现在的 cost 是一个 WSS hop ~2ms; 不值得.
 
 ---
+
+## Revision 7 — 2026-05-26: Glass v2.1 pivot — 裸机 (bare-metal) replaces CXR-L
+
+**Status**: confirmed by Zack; code on branch `pivot/baremetal-v2.1` in `Constellation-Glass`.
+
+完成 Phase 3b.1–3b.4 (CXR-L 桥接版本) 后发现三处根本错误，触发 Glass 客户端架构整体重设计。
+
+### 触发因素
+
+1. **CXR-L SDK 是手机端 SDK，不是眼镜端**. v1.0.1 官方文档（`developerdoc.rokid.com/sdk`，2026-05-07）首句明示 "CXR-L SDK 运行在手机端". 我们的 `Constellation-Glass` 目标是装在眼镜上的 HUD app，应走 **裸机 (bare-metal)** 路径 —— 直接装到眼镜 Android Go 系统上，不通过 Rokid AI App 桥接.
+2. **InstructSdk 依赖 Sprite 语音助手长开**. 官方 doc: "指令触发需要用户打开眼镜设备'设置'中'语音助手激活'开关". 这与"能效是项目第一指标"的新约束冲突.
+3. **R08 物理输入完全暴露**. `reference/rokid-glass/bare-metal-docs/01-key-events.md`: 系统以 `ACTION_SPRITE_BUTTON_*` + `ACTION_TWO_FINGER_*` 有序广播形式投递按键事件，`BroadcastReceiver` 可在 Service 里直接接，无需 Activity 在前台. 物理键覆盖所有交互需求.
+
+### 新约束（追加到 §8）
+
+| 编号 | 约束 | 用户原话依据 |
+|---|---|---|
+| **C-36** | **Glass 客户端走裸机路径，不用 CXR-L AAR / Rokid AI App / AuthorizationHelper**. App 直接装到眼镜，标准 Android Go + Android `AudioRecord` + Activity 渲染 HUD. | 见 [reference/rokid-glass/bare-metal-docs/04-cxrl-vs-baremetal-decisive.md] + Zack 决策 2026-05-26. |
+| **C-37** | **能效是 Glass 端第一指标**. 后台不长开 mic; 无任何"wake word 监听"流程; mic 只在用户主动按物理键后开启; 15s hard cap 自动关闭兜底; WSS keepalive 15s 但 update-rate ≤ 4Hz; 显示 panel 在 IDLE 状态全暗. | "能效是这个项目最重要的第一指标". |
+| **C-38** | **物理按键是 Glass 主输入路径**. 单击=Approve/进 Listening; 长按=Modify/wake; 双击=Kill (系统占用为返回，不可拦截); 双指前/后滑=scroll. 不依赖 InstructSdk / Sprite 语音助手. Halo Ring 为 optional 增强，缺席不影响功能. | "InstructSdk 一起死...物理键完全够". |
+| **C-39** | **`reference/` 是 SDK 与官方文档的本地缓存，gitignore 屏蔽大文件，但 `reference/rokid-glass/bare-metal-docs/` + `reference/INDEX.md` 入库**. 任何 Glass 相关设计/实现争议先查 `reference/`. | 本次会话产出 1.1 GB SDK 镜像 + 5 篇本地整理的官方裸机文档. |
+| **C-40** | **手机/眼镜 build 严格通过 Gradle productFlavor 隔离**. `glass` flavor: AudioRecord ChannelMask=0x6000FC + SystemKeyReceiver + GlassHudActivity. `phoneDebug` flavor: 标准 mono AudioRecord + SYSTEM_ALERT_WINDOW overlay + 通知按钮模拟输入. 共享 core 代码（state machine / WSS / cookie auth / styled runs）必须零平台依赖. **Phone 端只用于验证协议与状态机，不代表生产行为**. | 用户要求 "把 debug 用的眼镜端跟手机端分开". |
+
+### 实施影响（落地于本次会话）
+
+**新文档**:
+- `GLASS-CLIENT-DESIGN.md` v2.1 (rewrite; v2.0 保留为 `.bak`).
+- `MIGRATION-PLAN.md` (详细迁移步骤).
+- `reference/INDEX.md` + `reference/rokid-glass/bare-metal-docs/` 5 篇.
+
+**Glass 端代码 (Constellation-Glass on branch `pivot/baremetal-v2.1`)**:
+- 删除: CXR-L AAR dep, `HudRenderer`, `SelfViewJson` 等 customView 渲染层, `TokenStore`, Rokid auth 流程.
+- 新增: `HudPlatformAdapter` / `AudioCapture` / `InputHandler` 接口; `glass/` flavor (GlassAudioCapture 0x6000FC + SystemKeyReceiver + GlassHudActivity); `phoneDebug/` flavor (PhoneAudioCapture + DebugInputController + PhoneDebugHudSurface).
+- StateMachine v2.1: 物理按键路由 (`handlePrimaryClick` 等), 15s mic hard cap, Insight TTL 自动关闭, 直接 emit `user_decision` 帧 (跳过 voice 通道).
+- ScrollWindow 接入 GlassHudActivity card body viewport.
+
+**Cortex 端**:
+- 默认 `WHISPER_MODELS_DIR` 从 `/tmp/whisper-models` → `~/constellation/whisper-models` (macOS 自动清理 /tmp 会丢模型).
+- 其余无变更 (协议 + Level 2 partial 转写均保留).
+
+### Diff to existing constraints
+
+- **C-22 (always-on mic per card)**: **撤销，由 C-37 + C-38 替代**. v2.1 mic 严格"用户主动开启 + 15s 自动关闭". CARD 的 modify 仍由 server 发 `mic_open` 触发但只在用户长按物理键发出 Modify 决策后才发.
+- **C-25 (visible process)**: 不变.
+- **C-28 (3-button)**: 不变, 但物理输入路径变了 (单击/长按/双击 vs. 之前的 ring/voice).
+- **C-31 / C-34 / C-35**: 不变 (cortex 侧不变).
+
+### Open Questions
+
+- **OQ-R7-1**: GlassAudioCapture 8 通道 deinterleave 是否过滤 noise 足够好，还是需要在 cortex 端再叠一层 RNN-NS? 等真机 + 真实环境测.
+- **OQ-R7-2**: GlassHudActivity 用 Android View 而非 Compose（Go 内存约束）. 字号 / 行距 / wrap-chars 都需要真机调（当前 `cardBodyWrapChars=28` 是估值）.
+- **OQ-R7-3**: 双击系统返回会 finishAffinity 退到 launcher 还是仅 finish current Activity? 真机验. 取决于 R08 系统的 KEYCODE_BACK 默认行为.
+- **OQ-R7-4**: 物理键单击在 IDLE 时直接 startListening — 但 streamId 是 fresh `fresh_<ts>`，cortex 侧需要 audio_end 后做 fresh user_invoke 而不是 modify decision. 当前 cortex code 已经做了此分支（`audio_end.intent="fresh"`），但路径没真机端到端测.
+- **OQ-R7-5**: 屏幕 480×640 portrait, 但 GlassHudActivity 用了 Theme.Constellation.Hud 透明全屏. 实际渲染像素映射到 JBD4020 micro-LED panel 是 1:1 还是有 scale? 需要真机测.
+
+### 待办（推到下个 phase）
+
+- **3b.5 真机部署 + 功耗 profile**: 需要专门的 Rokid 开发线 (普通充电线没数据通道).
+- **Halo Ring profile push 重做**: stub 还在; 优先级低 (物理键已经覆盖).
+- **App settings UI (§2 in `ui-mockup.html`)**: 没动. 优先级低.
+- **真机验证 phoneDebug 闭环**: protocol 层已验, 但物理按键路径要等真机.
+
+---

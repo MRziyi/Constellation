@@ -15,14 +15,14 @@
 |---|---|
 | **节能第一 (Glass)** | Glass 字段尽量少；不做内部状态判断；不生成 client-side ID；不携带可由 Cortex 推断的字段 |
 | **Hybrid 连接模式 (Glass ↔ Cortex)** | 用户活跃期 WSS 保持；idle 期关 WSS，靠 push notification 唤醒。详见 §1.6 |
-| **Always-on mic per HUD card (R-3 / C-22)** | Glass 每张 HUD card 出现时默认开麦 + VAD-stop；30s timeout 等戒指 tap。用户语音 → `user_decision { decision: "feedback", feedback_text: "..." }`；戒指 tap default → `user_decision { decision: "send" }` (或 option_id)。**两条 channel 完全平行**，用户自选 |
+| ~~**Always-on mic per HUD card (R-3 / C-22)**~~ | **Superseded 2026-05-26 by C-37 / C-38 (v2.1 pivot).** Mic is now user-initiated only: single click of right-temple button starts Listening; 15s hard cap watchdog auto-stops. CARD → Modify still triggers server-initiated `mic_open` but only after the user long-presses to send Modify. See [GLASS-CLIENT-DESIGN.md v2.1 §1 + §3.2](GLASS-CLIENT-DESIGN.md). |
 | **Multi-step task chain (R-3 / C-20)** | Plan 可标 `task_continues=true` + `next_step_hint`；Cortex 端跨轮维护 `task_history` (in-memory)；Glass 端 unchanged — 看到的就是一系列 preview_action cards |
 | **JSON for messages, YAML for Twin frontmatter** | 消息走机器；Twin 走 vim |
 | **ID 由接收端分配** | Glass 上传不带 id；Cortex 收到后分配 `evt_*`。Cortex 下发 Command 时分配 `cmd_*`，Glass 端后续 `user_decision` 用 `in_reply_to=cmd_id` 关联 |
 | **未知字段忽略** | 向后兼容；schema 可演化不破坏 |
 | **side-effecting 必有 `requires_confirm`** | P3 在 schema 层强制 + Cortex 启动加载 `confirm-policies.md` 在 `_apply_confirm_policies` 强制 override (defense in depth, Q-9) |
 | **结合 Q-6（断网直接报错）** | Glass 端**无**本地 ACK / retry / 缓存机制 |
-| **Cortex 输入永远 `{text, image?}` (R-1 / C-17)** | 从不接收原始音频；STT 在 Glass / phone / 客户端完成 |
+| ~~**Cortex 输入永远 `{text, image?}` (R-1 / C-17)**~~ | **Superseded 2026-05-26 (Phase 3b.4).** Cortex now receives `audio_chunk` (b64 PCM) + `audio_end` events from Glass and runs `whisper-cli` server-side. Web HUD still sends text/image only. See [GLASS-CLIENT-DESIGN.md v2.1 §2.4](GLASS-CLIENT-DESIGN.md). |
 
 ---
 
