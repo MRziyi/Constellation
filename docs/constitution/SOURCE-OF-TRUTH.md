@@ -1113,6 +1113,110 @@ Zack 复盘 P1.6+ 阶段时定下新方针：**"内存 + 能耗是下一阶段�
 - ~~**OQ-R13-2**~~ ✅ resolved by implementation: `CameraGate.kt` 移到 `app/src/main/` 后两个 flavor 都能用 (R-10 时已这么做). phoneDebug 收到 request_image 也走真 CameraX 拍照 (OnePlus 后置镜头), 不需要"忽略 + 空回包"逻辑. 路径统一.
 - **OQ-R13-3**: 多个并发 request_image (e.g. 用户连续问两个视觉问题) — Future 注册表用 req_id 隔离, 但 Glass 端 CameraGate 是 singleInstance, 第二次 capture 会跟第一次冲突. 当前不处理 (用户连续视觉问题罕见), 留 OQ.
 
+---
+
+## Revision 14 — 2026-05-29 (late EOD): voice-addressable parallel session router (C-56)
+
+**Status**: design locked. 实现待落地.
+
+### 触发因素
+
+Zack 复盘 P1.5b 完成时提的需求 (前面对话):
+
+> 在我们进入 session 之前，要先看一下，是不是之前的某一个 session，还是说创建一个新 session。
+> 这样的话，我就能读到历史的，我能继续之前的任务，而不必重建上下文；也能找到之前开好的某个
+> Claude Code 的终端，能并行了。
+> ...
+> 这相当于给 Cortex 最开始喂 prompt 和照片的时候，让他知道：首先知道我的 prompt 是什么，
+> 也知道历史中有什么 session；然后可能根据我的 prompt 来选一个 session，或者新开一个任务.
+
+需求拆三层：
+1. **多并行 session** — 多个 CC tmux 同时活
+2. **voice 路由** — 用语言匹配过往 session ("那个 auth 重构那个")
+3. **pin 机制** — 显式 keep-alive 不被 30min TTL 杀掉
+
+### 现状对比（P0.1 已有 vs R-14 新增）
+
+| 能力 | P0.1 (已有) | R-14 新增 |
+|---|---|---|
+| 同一 session 内 CC tmux 复用 (agent_continue) | ✅ | — |
+| 多个 session 各自的 CC tmux 注册表 (`_active_hud_session_tmux`) | ✅ 支持 N 个，技术上无并行限制 | — |
+| 自动 30min TTL evict + sweeper | ✅ | — |
+| HTTP `/api/sessions?status=...` 列举 | ✅ | — |
+| Glass 端硬性带 session_id | ✅ | 路由会**覆写**这个 session_id |
+| 语义路由 ("the auth refactor one") | ❌ | ✅ **C-56 新功能** |
+| 显式 pin 防 TTL evict | ❌ | ⏸ 推后到 R-14.b |
+| 低置信度时 HUD confirmation card | ❌ | ⏸ 推后到 R-14.b |
+
+### 新约束
+
+| 编号 | 约束 | 用户原话依据 |
+|---|---|---|
+| **C-56** | **每个 fresh voice invoke 在 classifier 之前先过 session router**. 输入: prompt 文本 + 当前活着的 sessions 索引（含 title / last_summary / age / turn_count）+ 可选 image flag. 输出: `{target_session_id: str \| "new", confidence: float, why: str}`. 高置信度 (≥0.7) 直接覆写 `event.payload.session_id` → 下游 `_dispatch_complex_agent` 现有 reuse 路径自然走 agent_continue 注入. 低置信度 ⏸ 推后到 R-14.b (emit confirmation card). 路由器用 **classifier 同一档小模型** (gpt-5.2 + diskcache; 不引入新 model 依赖). 单 session 时短路 — 直接复用. | 用户原话见上节. |
+
+### 协议影响
+
+**无新增 WSS frame**. 完全在 Cortex 内部 — Glass 端零改动. 路由决策的可见副作用是: HUD progress frame 在 classifier 前多一条 `"stage:routing 🧭 routing to existing session 'Refactoring auth.ts'"`.
+
+### Sessions 索引扩展
+
+`_active_hud_session_tmux` entry 加 4 个字段:
+
+```python
+{
+    "tmux_session": ...,           # 已有
+    "cc_session_id": ...,          # 已有
+    "working_dir": ...,            # 已有
+    "timeout_s": ...,              # 已有
+    "last_activity": ...,          # 已有
+    "last_summary": ...,           # 已有 (120 char cap)
+    # ── R-14 加 ──
+    "title": str,                  # 从首轮 prompt 抽 6-10 word 名;
+                                   # default = last_summary 的前 40 char
+    "created_at": float,           # epoch s, 首次注册时间
+    "turn_count": int,             # session 内 user_invoke 计数
+    "pinned": bool,                # ⏸ R-14.b 用，当前永远 False
+}
+```
+
+`created_at` + `turn_count` 让 router LLM 区分"刚开 5 秒前的 session" vs "聊了 20 轮的老 session".
+
+### 实施序列
+
+1. 扩 `_hud_tmux_register` 写入新字段, `_hud_tmux_lookup` 更新 turn_count.
+2. 加 `_route_session(event, current_sid)` 函数:
+   - 列举 active sessions (跳过 stale 的)
+   - 若 ≤ 1 个 active → return `current_sid` (短路)
+   - 否则调小 LLM: prompt + sessions index → JSON 决策
+   - 应用决策: mutate `event.payload.session_id` 或 clear (新建)
+3. 在 `_handle_user_invoke` 顶部 (session start_turn 之前 OR 之后？) 调 `_route_session`. 决策 **before** start_turn 否则 sid 已经定了.
+4. 受影响的 metric: 加一行 `sessions.append(sid, "session_routed", from=..., to=..., confidence=..., why=...)` 给后续分析.
+
+### 不在 R-14 范围（推 R-14.b 或更晚）
+
+- **R-14.b — Pin 机制**: voice 命令 "keep this one alive" / "pin this session" → 标记 `pinned=True` → TTL sweeper 跳过. 需要 Glass 端 audio_end 后 cortex 端 intent 识别.
+- **R-14.c — Confirmation card**: low-confidence (0.4-0.7) 时发 actionable CARD "Is this it? • [title preview]" + options=[yes / no / cancel]. yes → 路由到该 session; no → 让 cortex 再选下一个候选 OR 转新建; cancel → 新建.
+- **R-14.d — Cross-session context bleed**: 当前 session router 只决定 "去哪", 不带任何来自其他 session 的上下文. 未来可考虑 "同时引用另一个 session 的结果".
+
+### Open Questions
+
+- **OQ-R14-1**: 单 session 短路阈值 — 单个 session 时是否完全跳过 LLM? 当前设计是. 但如果 user 显式说 "新开一个" / "start fresh", 是否要强制识别意图? 短期: 不识别 (用户可手动通过 Glass 重启 session). 长期: 加 "new" / "fresh" / "新开" 关键词检测.
+- **OQ-R14-2**: 路由器 LLM 选哪个? `gpt-5.2` 加 diskcache (跟 classifier 同档) 性价比好. 单次 ~200 tok input + 30 tok output = ~$0.0001/invoke. Cache hit 大多免费.
+- **OQ-R14-3**: 当前 HUD 设计里, 用户怎么知道自己**当前**在哪个 session? Status bar 或 CARD title 是否要带 session 名? 暂不强求 (用户从对话内容能感知); 留 UI 题给 P1.10.
+- **OQ-R14-4**: 路由器如果选错 (路到了错的 session), 用户怎么纠正? Modify decision 一定是当前 session 的; 想"跳出去新开"目前只能通过显式 Kill + 重新 voice invoke. R-14.c confirmation card 解决这个.
+
+### 实施目标
+
+OnePlus 9 (`854afb6b`) phoneDebug 上:
+- 触发 invoke A: "draft email to Jane about Q3 budget" → 新 session
+- 触发 invoke B: "remind me to call Mom" → 新 session (两个 active)
+- 触发 invoke C: "the email one — make it more concise" → 路由到 A
+- 触发 invoke D: "call Mom — actually tomorrow not today" → 路由到 B
+
+Rokid Glasses (`<glass-serial>`) 验证语音路径相同闭环.
+
+---
+
 ### 实施目标
 
 OnePlus 9 (`854afb6b`) phoneDebug 上验证协议层 (request_image 收到, image_attached 即使空也回传); Rokid Glasses (`<glass-serial>`) glass 上验证完整闭环: 单击侧键 → Listening → 说"那是什么?" → Cortex router → request_image → CameraGate 拍照 → Cortex 拿到 image → vision_describe → CARD prose 描述.
