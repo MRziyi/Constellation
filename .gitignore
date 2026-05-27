@@ -20,3 +20,5 @@ reference/**
 !reference/rokid-glass/bare-metal-docs/**
 !reference/rokid-glass/cxrl-docs/
 !reference/rokid-glass/cxrl-docs/**
+# P1.8 / Phase α — local memory/CPU profile snapshots (binary + large)
+profile-out/
