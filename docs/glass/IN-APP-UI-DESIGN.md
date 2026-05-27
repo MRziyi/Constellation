@@ -415,9 +415,9 @@ Glass-side requires zero changes — the Phase Q image plumbing already does the
 | `am broadcast kill_active` | StateMachine Listening → Idle | ✅ |
 | Photo capture downscale | 1.7 MB → 70 KB at 1024px / q=80 | ✅ |
 | FGS_CAMERA type declared | Service can keep camera in background | ✅ |
-| QR scanner / SCAN QR button on LoginScreen | code complete, visual E2E **pending Q.8 deploy** | ⏸ |
-| Edge `/api/auth/pair_qr` | code complete, returns JSON bundle when auth'd | ⏸ |
-| Web Console `/about` QR render | qrcode.react 256×256 white padding, build clean | ⏸ |
+| QR scanner / SCAN QR button on LoginScreen | ✅ landed 2026-05-26 EOD — OnePlus: scanned QR in ~4s, app auto-jumped to Main, cookie+endpoint persisted, WSS reconnect + invoke+card all worked |
+| Edge `/api/auth/pair_qr` | ✅ deployed 2026-05-26 EOD — returns 401 unauthed, JSON `{endpoint, cookie_name, cookie_value}` when session cookie present |
+| Web Console `/about` QR render | ✅ deployed 2026-05-26 EOD — qrcode.react 256×256 rendered, scannable from OnePlus camera through Mac display |
 
 ### Rokid Glasses <glass-serial> — first device contact
 
@@ -431,3 +431,17 @@ Glass-side requires zero changes — the Phase Q image plumbing already does the
 **Implications**:
 - `HudTheme` dp values render at × 1.5 px (240 / 160 baseline). Our `panelWidthDp = 480.dp` constant is a misleading name — actual content area at density 240 is 320 dp. Doesn't break anything (we use `fillMaxSize()` for sizing) but should rename / comment for clarity.
 - `cardBodyWrapChars = 42` was tuned on the OnePlus simulator. On Rokid Glasses 320 dp content width with sans-serif body, real char-width should be measured on first text-rendering pass.
+
+### Rokid Glasses <glass-serial> — Q.8 QR-pair verification (2026-05-26 EOD)
+
+| Step | Observation |
+|---|---|
+| Fresh install `app-glass-debug.apk` + grant CAMERA / RECORD_AUDIO / SYSTEM_ALERT_WINDOW | Success |
+| Launch MainActivity (no cookie) | LoginScreen rendered crisp on 480×640 — "Constellation" title bold green, endpoint monospace `wss://edge.example.com/ws/glass`, body "Enter password or scan the QR code from your web console.", **SCAN QR** + **AUTHORIZE** buttons side-by-side |
+| Tap SCAN QR (adb input tap 130 351) | Scanner overlay rendered: top-line "Open web Console → About → Pair this device. Point the camera at the QR." + camera preview area + CANCEL button at bottom |
+| Eyewear camera points at QR shown on Mac (`open /tmp/q8_pair_qr.png`) | Scan detected; nav popped to Main automatically |
+| Main screen rendered post-pair | "● Constellation MAIN" with amber dot in title (Offline state), status block "● Offline" + endpoint `wss://edge.example.com/ws/glass` (set by QR scan) + Shortcuts / Connect to Cortex / About rows + "Pair Halo Ring for ring-gesture shortcuts" hint |
+| WSS connect attempt | `WssClient · reconnect in 1435ms (attempt 1)` — DNS lookup for `edge.example.com` fails (no internet on eyewear). Cookie + endpoint are persisted; just the network can't reach Edge. |
+| Force-stop + relaunch | Straight to Main, no Login flash → **cookie + endpoint persisted correctly across app restart** |
+
+**Q.8 result**: Pair flow ✅ fully verified on real eyewear. **Eyewear-network setup is the only blocker** between this state and full Cortex round-trip; the QR pair architecture itself works exactly as designed.

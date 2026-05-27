@@ -851,7 +851,7 @@ required on the Console / Edge side.
 ### 待办（推到下个 phase）
 
 - ~~**Q.4.5 Cortex vision passthrough** (C-47 实施)~~ ✅ landed 2026-05-26 EOD — Cortex `83bba42 + 1250f74 + 948bad6`; vision_describe adapter + classifier prompt + router catalog + E2E verified on OnePlus 9 real camera shot.
-- **Q.8 Phase Q deploy + Rokid Glasses E2E** — deploy edge + web; OnePlus 9 + 真眼镜两端测 QR 流程.
+- ~~**Q.8 Phase Q deploy + Rokid Glasses E2E**~~ ✅ landed 2026-05-26 EOD — Edge + web deployed; OnePlus 9 + Rokid Glasses 两端都通过 QR 扫码完成配对 (无密码键入); Rokid Glasses 端 cookie + endpoint 持久化跨重启验证通过。残余项：Rokid Glasses 当前 WiFi 无法解析 `edge.example.com` (Edge 公网域名)，需联网/Tailscale 配置才能完整跑通 WSS→Cortex 链路。
 - **Halo Ring profile push** (P1.7) — still optional; not blocking.
 
 ---
