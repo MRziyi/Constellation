@@ -855,3 +855,77 @@ required on the Console / Edge side.
 - **Halo Ring profile push** (P1.7) — still optional; not blocking.
 
 ---
+
+## Revision 10 — 2026-05-28: HUD overlay pivot + camera-gate finding
+
+**Status**: confirmed by Zack ("HUD 不要充满一个屏幕, 要让 HUD 真的是 HUD. 你要申请打开这个悬浮在其他应用上面的 overlay 权限"); code shipped Constellation-Glass `c0f8836` → `591e1d9`. Verified on real Rokid Glasses (`<glass-serial>`) — HUD card floats above Rokid Sprite launcher; first time the HUD is visually consistent with what an AR HUD should be on real hardware.
+
+### 触发因素
+
+Real-device EOD 2026-05-27 + start-of-day 2026-05-28: Zack wore the eyewear and noticed
+1. 界面比预想大很多 (字号过大);
+2. HUD 重合在应用上层 = mechanically owns the panel even though most pixels were AR-transparent — the wearer couldn't see launcher / system surfaces behind it the way a "real" HUD should;
+3. HUD 没有 card visual — just bare text on the panel; lacks any "this is an overlay" affordance;
+4. 屏幕熄屏后 HUD 更新不点亮屏幕 (~10s auto-lock).
+
+These all flowed from the pre-Rev10 architecture decision (P1.6 Phase E) to use a fullscreen transparent Activity (`GlassHudActivity`) as the HUD host. The Activity *was* transparent, but it mechanically *owned* the panel and blocked everything behind it from being focusable; on the AR side the wearer's eye saw HUD pixels only.
+
+### 新约束（追加到 §8）
+
+| 编号 | 约束 | 用户原话依据 |
+|---|---|---|
+| **C-48** | **HUD = system-level floating overlay, NOT a fullscreen Activity**. Host = `SYSTEM_ALERT_WINDOW` (TYPE_APPLICATION_OVERLAY) on glass flavor; `WRAP_CONTENT` × `WRAP_CONTENT` so card sizes to content. Content wrapped in `CardFrame` Composable (rounded 12dp corners + dim green border + dark fill that is transparent on JBD4020 unlit pixels). Card content-fit height (short content = short card; bounded at `HudTheme.cardMaxHeightDp = 380dp`). User must grant SYSTEM_ALERT_WINDOW permission via Settings; we surface this at first launch. **`GlassHudActivity` deleted**. | "HUD 不要充满一个屏幕, 要让 HUD 真的是 HUD. 你要申请打开这个悬浮在其他应用上面的 overlay 权限, 然后真的悬浮在系统级的最上层." + "不能是光秃秃的文字, 应该用一个设计好看卡片给它框起来" + "按需高度变化的, 短的就短一点". |
+| **C-49** | **Wake-on-while-visible**: SCREEN_BRIGHT_WAKE_LOCK + ACQUIRE_CAUSES_WAKEUP acquired on `Idle → {Listening, Thinking, Card, Insight, Offline}`, released on `→ Idle`. 5-minute hard ceiling for safety. Cards have 30s+ TTLs; ~10s auto-lock would otherwise cut card view mid-read. C-37 (energy first) is honored — wake lock only while HUD has visible content; once Idle (HUD empty) panel can auto-lock normally. | "更新时点亮屏幕 (现在默认10s熄屏)". |
+| **C-50** | **Type scale calibrated for real Rokid Glasses panel** (density 240 hdpi, content area 320×426 dp): title 14sp, body 11sp, meta 10sp, footer 9sp. Side padding 10dp, top padding 8dp (inside CardFrame). `cardBodyWrapChars=40` (down from 42); `cardBodyVisibleLines=8` (up from 6 since smaller font fits more). Numbers will be tuned further as real cards render. | "界面比我预想中大多了, 所以整个字体什么的都能变小一些." |
+
+### 协议契约修正
+
+无 — render-layer-only redesign. Cortex emits the same frame kinds; the
+StateMachine handles them the same way. Only Glass-side host + visual changed.
+
+### Diff to existing constraints
+
+- **C-37 (energy first)**: 不变. **C-49** is a specific implementation: wake lock only while HUD visible, not blanket.
+- **C-38 (physical key primary)**: 不变. CARD double-click still maps to system back / Kill.
+- **C-40 (flavor split)**: 强化. With overlay model, `glass` + `phoneDebug` now use the same `SYSTEM_ALERT_WINDOW + ComposeView` pattern; the only difference is the phoneDebug overlay wraps the same `AppStateHud` in a "GLASS SIM" simulator frame. `OverlayHostOwner` lifted from `phoneDebug/` to `main/`.
+- **C-41 (Compose only)**: 不变, reinforced. Single Compose tree across both flavors via shared `CardFrame` + `AppStateHud`.
+- **C-43 (no outdoor HBM fallback / no IMU)**: 不变.
+- **C-44 / C-45 / C-46 / C-47 (Phase Q + vision)**: 不变 protocol-wise. CameraX usage now blocked on real eyewear (see OQ-R10-1 below).
+
+### Open Questions
+
+- **OQ-R10-1**: **YodaOS camera gate** — CameraX `bindToLifecycle()` fails with `ERROR_CAMERA_DISABLED` on real Rokid Glasses regardless of CAMERA runtime permission, FOREGROUND_SERVICE_CAMERA declaration, and explicit `ServiceCompat.startForeground(..., FOREGROUND_SERVICE_TYPE_CAMERA)`. Same code works on OnePlus 9. Need to find the vendor-level mechanism (Sprite exclusive reservation? `com.rokid.permission.CAMERA`? non-standard camera ID? top-temple camera button must be system-launched?). Tracked in TODO.
+- **OQ-R10-2**: SYSTEM_ALERT_WINDOW permission UX — currently we don't surface a permission grant flow when first launching on a fresh device. On Rokid Glasses our overlay appeared to work without explicit grant (vendor pre-grants? auto-grant for first-party?). Need to confirm and either document or add a fallback path.
+- **OQ-R10-3**: WakeLock duration ceiling — 5min is safety. If a CARD lives longer than 5min (e.g. user reading a long Cortex agent output), panel auto-locks mid-view. Probably fine — user can dismiss + re-engage; pathological case. Revisit if seen in practice.
+
+### 实施影响（本次会话落地）
+
+**Constellation-Glass commits**:
+- `c0f8836` HUD redesign A+C (smaller fonts + CardFrame composable)
+- `830d884` HUD redesign B+D (SYSTEM_ALERT_WINDOW overlay + wake-on-while-visible)
+- `b5cdb97` Q.4.5b HTTP retry helper + CardHud footer copy fix
+- `591e1d9` ConstellationService FGS types explicit at startForeground (Android 14 defense-in-depth)
+
+**Constellation commits**:
+- `a35a843` TODO: Rokid Glasses WiFi auto-disable workaround note
+
+**Deleted**:
+- `app/src/glass/.../glass/hud/GlassHudActivity.kt`
+- `Theme.Constellation.Hud` style from `themes.xml`
+- Old "fullscreen transparent Activity" architecture as a whole
+
+**New files**:
+- `app/src/main/.../hud/composables/CardFrame.kt`
+- `app/src/glass/.../glass/GlassHudOverlay.kt`
+- `app/src/main/.../net/HttpRetry.kt`
+
+**Moved**:
+- `OverlayHostOwner.kt` from `phoneDebug/` to `main/` (now used by both flavors)
+
+### 待办（推到下个 phase）
+
+- **OQ-R10-1 投入投入**: 真正解决 YodaOS camera gate (read more Rokid bare-metal docs; ask Rokid developer support; try alternative camera APIs).
+- **OQ-R10-2 SYSTEM_ALERT_WINDOW permission flow**: 给 fresh-install 加 grant 引导.
+- **Halo Ring profile push** (P1.7) — still optional; not blocking.
+
+---
