@@ -317,12 +317,48 @@ phoneDebug 的 in-app UI = **跟 glass flavor 完全相同的 Composable**，只
 
 ---
 
-## 11. 完成定义（P-app.A 至少）
+## 11. 完成定义 + 验证记录
 
-✅ 眼镜 / 一加上打开 app icon → MainActivity 拉起 + 直接进 MainScreen（已登录）或 LoginScreen（未登录）
-✅ Status block 实时反映 `/api/health`（绿/橙点 + endpoint snippet + invoke count）
-✅ Connect 屏可看 / 改 endpoint，DataStore 持久化，编辑后 WSS 自动重连
-✅ TEST CONNECTION (Phase B 接好 `/api/ping` 后) 真能 ping 通并显示结果
-✅ DOUBLE_CLICK 在 root 退到 launcher；MainActivity 进入前台时不与 HUD 抢面板
-✅ 一加上同套 UI 用 touch + back 键操作可用
-✅ glass + phoneDebug 两个 flavor 都 build clean
+### ✅ P-app.A 完成 (commits `7cd9261` + `a64a5a5`)
+
+- 眼镜 / 一加上打开 app icon → MainActivity 拉起 + 直接进 MainScreen
+- Status block 实时反映 `/api/health`（绿/橙点 + endpoint snippet + invoke count）
+- Connect 屏可看 / 改 endpoint，DataStore 持久化，编辑后 `ConstellationService.reconfigure()` 自动重连
+- DOUBLE_CLICK (system back) 在 root 退到 launcher；MainActivity 前台时 GlassHudSurface + phoneDebug overlay 都让出面板
+- 一加上同套 UI 用 touch + back 键操作可用
+- glass + phoneDebug 两个 flavor 都 build clean
+
+### ✅ P-app.B 完成 (Cortex `3fa38b7` + Glass part of `2fc8634`)
+
+- Cortex 加 `POST /api/ping` 轻量 endpoint，不触发 router / dispatcher / LLM
+- Glass `CortexPingClient` 调用 + 自动带 cookie（Edge gate all `/api/*`）
+- TEST CONNECTION 按钮 → 4s 超时 → toast "pinging…" → "✓ ping ok · server_bound · tool_conn" → 4s 自动清除
+- HealthClient 也补了 cookie（之前 Status block 因 401 一直显示 Offline）
+
+### ✅ P-app.C 完成 (Glass part of `2fc8634`)
+
+- AboutScreen：版本号 / flavor / 标语 / Halo Ring repo / 开源声明，全静态信息屏
+- 自动从 BuildConfig 读 `VERSION_NAME` + `PLATFORM`
+
+### ⏸ P-app.D 待定
+
+Shortcuts (Cortex `/api/shortcuts` + Twin schema + HaloActionsProvider 实装)。
+设计已在 §3 / §7 锁定，等单独排期。
+
+---
+
+## 12. 端到端真机验证日志（OnePlus 9, 854afb6b）
+
+| 步骤 | 期望 | 结果 |
+|---|---|---|
+| Launch app (cookie 存在) | 跳过 Login，直接进 Main | ✅ |
+| Main 顶部 Status block | "● Connected to Cortex" 绿点 | ✅ |
+| Main → tap "Connect to Cortex" | 进 ConnectScreen | ✅ |
+| Connect → tap endpoint URL | 进 EditEndpointScreen | ✅ |
+| EditEndpoint → CANCEL | 回 Connect (栈 pop) | ✅ |
+| Connect → tap TEST CONNECTION | toast "✓ ping ok · server_bound · tool_conn" | ✅ |
+| Connect → system back | 回 Main | ✅ |
+| Main → tap About | 进 AboutScreen，显示真版本号 | ✅ |
+| About → system back | 回 Main | ✅ |
+| Main → system back | `topResumedActivity=launcher`；Service 仍 alive | ✅ |
+| Service 后台时，HUD overlay 自动重新 attach | foreground watcher 工作正常 | ✅ |
