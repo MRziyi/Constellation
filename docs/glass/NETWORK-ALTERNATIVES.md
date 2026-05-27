@@ -66,6 +66,7 @@ NetworkAgentInfo{network{100}  ni{WIFI CONNECTED}
 1. **iOS Personal Hotspot over Bluetooth 只发 IPv6 RA，不跑 DHCPv4 server**
    - Apple 的 BT 热点是 PAN-NAP role，但没启用 IPv4 DHCP daemon
    - 唯一的网络配置渠道是 IPv6 RA + SLAAC
+   - **iPhone 端确认**：眼镜连上 BT-PAN 后，iOS 的 Settings → 蓝牙 → 眼镜 → "Bluetooth PAN-NAP" 详情页显示 **IPv4 Address / Subnet Mask / Router 三个字段都是空白**，Configure IP 设为 Automatic。意味着 iPhone 自己都没在这条链路上配 IPv4 — 它把这个页面留给用户**手动**填 IP/Subnet/Router/DNS 才会启用 v4。等于 Apple 出厂就关了这条 BT 上的 v4 路径。
 
 2. **YodaOS 的 BluetoothTethering NetworkAgent 没生效**
    - AOSP 标准实现下，PAN PANU 连接成功应该触发 BluetoothTethering 的 NetworkAgent 注册到 ConnectivityService
