@@ -1041,7 +1041,7 @@ P1.5a 同次跑出还发现：StateMachine `dispatch()` 把 Cortex 同时发的 
 - ✅ 8-channel deinterleave → ch0 → whisper → Card 全链路通
 - ✅ Halo Ring 触发的 voice_invoke 路径仍然可用（之前 Q phase 验过）
 - ⚠ 侧键 in IDLE 不推荐作为 fresh voice 入口
-- 📌 OQ-R12-1（先前列在 R-11）— 关于 listening 中 camera capture 三选一方案 (a/b/c)，现在视角变了：戒指广播作 fresh voice 入口后，"voice + camera" 仍然是开放设计问题，但**入口已不是侧键**
+- ~~**OQ-R12-1**~~（先前列在 R-11）— 关于 listening 中 camera capture 三选一方案 (a/b/c) — ✅ **resolved by R-13 / C-55, 2026-05-29**: 选 (c) server-pull on demand 并落地 E2E. Cortex regex 检测 visual intent → emit request_image → Glass CameraGate 拍照 → image_attached → 注入 event → 正常 dispatch. 真机 Rokid Glasses 验过 ~20s round-trip.
 
 ---
 
@@ -1109,8 +1109,8 @@ Zack 复盘 P1.6+ 阶段时定下新方针：**"内存 + 能耗是下一阶段�
 
 ### Open Questions
 
-- **OQ-R13-1**: 10s timeout 是否够? 真机 CameraGate.captureViaGate 端到端实测 ~1.5s, 留 6x 头寸应该够; 若网络拥塞或眼镜 thermal-throttle 也可考虑动态.
-- **OQ-R13-2**: phoneDebug flavor 没有 CameraGate (它的相机用法不同). phoneDebug 在收到 `request_image` 时应该 (a) 试着用 Camera2 抓前置, (b) 忽略 + 返回空 image_attached 让 Cortex fallback. 选 (b) — 简单, 反正 phoneDebug 是 protocol 验证不是 production. 真机由 glass flavor 负责.
+- ~~**OQ-R13-1**~~ ✅ resolved: 真机实测 8s 拍照+上传 (含 CameraGate Activity 启动 ~2s, CameraX `takePicture` ~1.5s, b64 + WSS 上传 ~4s). 10s timeout 在标准 WiFi 下足够 (有 2s 余量); BT-PAN 模式可能紧, 后续加 `dyn_timeout` 字段再说.
+- ~~**OQ-R13-2**~~ ✅ resolved by implementation: `CameraGate.kt` 移到 `app/src/main/` 后两个 flavor 都能用 (R-10 时已这么做). phoneDebug 收到 request_image 也走真 CameraX 拍照 (OnePlus 后置镜头), 不需要"忽略 + 空回包"逻辑. 路径统一.
 - **OQ-R13-3**: 多个并发 request_image (e.g. 用户连续问两个视觉问题) — Future 注册表用 req_id 隔离, 但 Glass 端 CameraGate 是 singleInstance, 第二次 capture 会跟第一次冲突. 当前不处理 (用户连续视觉问题罕见), 留 OQ.
 
 ### 实施目标

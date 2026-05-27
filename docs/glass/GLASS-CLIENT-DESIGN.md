@@ -335,6 +335,7 @@ interface HudPlatformAdapter {
 | `audio_chunk` | `{stream_id, seq, b64_pcm, sample_rate, channels}` | LISTENING 每 250ms |
 | `audio_end` | `{stream_id, duration_ms, lang_hint?}` | 用户确认结束 mic / 15s hard cap |
 | `decision_voice` | `{cmd_id, command}` | (3b.3+; 物理键直接 → user_decision，可能不再需要 voice 通道) |
+| `image_attached` | `{req_id, image}` | R-13 / C-55: 响应 `request_image` 命令；`image` 为 base64-encoded JPEG (CameraGate 拍照)；空串=tried-but-failed (Cortex 短路 10s timeout) |
 
 命令（Cortex → Glass）：
 
@@ -345,6 +346,7 @@ interface HudPlatformAdapter {
 | `insight` | `{title_runs, body_runs, kind, ttl_ms}` | Insight Engine |
 | `mic_open` | `{stream_id, lang_hint?, ttl_ms?}` | Card modify 时 server 让眼镜开 mic |
 | `mic_close` | `{stream_id}` | server 明确关 mic（也作为 audio_end 之后的 ack） |
+| `request_image` | `{req_id, parent_event_id, hint?}` | R-13 / C-55: Cortex 检测到语音 prompt 是视觉问题但 event 无 image 时主动拉照。Glass 必须在 `?accept=` 握手里 advertise `request_image` 否则 Cortex 端 `_emit_glass_frame` 静默 drop. Glass 响应 → `image_attached` event. |
 
 ⚠️ 注：v2.1 下 `decision_voice` 几乎不用 — 物理按键直接合成 `user_decision`，跳过语音通道。保留以备未来 Halo Ring 长按等触发。
 
