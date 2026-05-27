@@ -1,7 +1,20 @@
 # Constellation `reference/` — SDK 与文档总索引
 
-**Updated**: 2026-05-27
+**Updated**: 2026-05-27（完整性验证 + CXR-L 官方文档）
 **Purpose**: 把跟**当前 Rokid Glasses（用户这款）开发**相关的 SDK 源码、官方文档、参考样本拉到本地，作为 [`GLASS-CLIENT-DESIGN.md`](../docs/glass/GLASS-CLIENT-DESIGN.md) + [`GLASS-SDK-REFERENCE.md`](../docs/glass/GLASS-SDK-REFERENCE.md) 的事实依据。
+
+## 完整性验证矩阵（2026-05-27）
+
+抓取了官方 https://developerdoc.rokid.com/sdk (SPA, chrome-devtools-mcp) + 校验本地 buildwithfenna git 同步状态。
+
+| SDK / 平台 | 状态 | 本地位置 |
+|---|---|---|
+| **眼镜端裸机开发** v0.0.1 (2026-03-01) | ✅ 3/3 sub-docs 完整；自 5-26 capture 后未更新 | `rokid-glass/bare-metal-docs/` 5 files (3 official + 04 路径决策 + 03 SDK总览) |
+| **CXR-L SDK** v1.0.1 (2026-05-07) | ✅ 5 核心文档内容化 + 28 sub-page URL manifest（共 ~28 子页）| `rokid-glass/cxrl-docs/` (00-04 + MANIFEST.md) + `cxrl-sample-{android,ios}/` |
+| **CXR-M SDK** v1.1.0 (2026-04-01) | ⚠ 公开站不放文档（商务渠道），**但用户已预先获取完整 20 页文档** | ⭐ `~/Code/Projects/R08-dev/refs/sdks/rokid/CXR-M SDK/` (official HTML docs) + `rokid-mobile/cxrm-sdk/` (sample) + `buildwithfenna/cxr-m/` (反编译) |
+| **YodaOS-Sprite** (系统) | ✅ 无独立 SDK 文档；通过 buildwithfenna 反编译 + bare-metal 总览覆盖 | `buildwithfenna/yodaos/` 41 个 .md + `bare-metal-docs/00-overview.md` |
+| **YodaOS-Master** (Dock/Studio) | ⛔ 非用户硬件 — N/A | — |
+| **buildwithfenna 总仓库** | ✅ git 跟 origin/main 0 commits behind, clean tree | `rokid-glass/rokid-docs-buildwithfenna/` |
 
 > ## ⚠ 设备型号锚点（避免后续 agent 又踩错）
 >
@@ -63,13 +76,23 @@
 - `cxr-l/api-reference.md` — CXR-L v0.0.1 反编译参考（**已过时**，v1.0.1 API 不同；trust `cxrl-sample-android` 反推）
 - `cxr-m/`、`cxr-s/` — CXR-M、CXR-S SDK 反编译
 
+### `rokid-glass/cxrl-docs/` — CXR-L SDK v1.0.1 官方文档（chrome-devtools-mcp 抓取）⭐ 2026-05-27 新增
+- `00-introduction.md` — SDK 定位 + 能力矩阵 + 场景构建概念
+- `01-quickstart.md` — Sample 下载 + 最小验证路径 (Android/iOS)
+- `02-dev-flow-and-state-machine.md` — 端到端状态机 + 鉴权/链路/能力门控
+- `03-terminology.md` — 术语表 (token / CXRLink / 场景构建 / Caps 等)
+- `04-feature-dev-sdk-import-android.md` — Android Gradle 集成
+- `MANIFEST.md` — **关键**：剩余 ~23 个 sub-page 的 documentId 清单，可按需 chrome-devtools-mcp 抓取
+
+CXR-L 是**手机端 SDK**（详见 `bare-metal-docs/04`），让手机 app 通过 Rokid AI APP 桥接到眼镜。Constellation-Glass 走裸机**不走这条**；保留这套文档是因为**"phone-bridge 网络共享"备选方案**（眼镜 WiFi 关闭 + 数据走手机）—— 详见 `docs/glass/GLASS-SDK-REFERENCE.md §8`。
+
 ### `rokid-glass/cxrl-sample-android/` — CXR-L Android 官方 Sample (cxrlsample101)
 Kotlin + Compose 写的 CXR-L 演示 app。**v1.0.1 真实 API 参考**：
 - `app/src/main/java/com/rokid/cxrlsample/activities/audio/AudioUsageViewModel.kt` — 真实 `IAudioStreamCbk` 签名（与 v0.0.1 不同）
 - `app/src/main/java/com/rokid/cxrlsample/dataBean/selfView/` — CustomView JSON schema 验证规则（gravity 不能用 top_start 等）
 - `app/src/main/java/com/rokid/cxrlsample/utils/Samples.kt` — 工具
 
-CXR-L 是**手机端 SDK**（详见 `bare-metal-docs/04`），让手机 app 通过 Rokid AI APP 桥接到眼镜。我们 Constellation-Glass 走裸机不走这条；但**如果要做"phone-bridge 网络共享"（眼镜 WiFi 关闭 + 数据走手机）**，这是核心参考。
+如要做 CXR-L 集成，trust 本 sample > buildwithfenna v0.0.1 反编译（API 已变）。
 
 ### `rokid-glass/cxrl-sample-ios/` — CXR-L iOS Sample
 Swift 写的 iOS 端 CXR-L 演示。如果做 iOS 配套 app，这是模板。
@@ -80,6 +103,20 @@ Swift 写的 iOS 端 CXR-L 演示。如果做 iOS 配套 app，这是模板。
 
 ### `rokid-mobile/cxrm-sdk/` — CXR-M SDK 工程（手机端，通过 BLE 直连眼镜）
 手机 App 通过蓝牙跟 Rokid Glasses 直接通信的 SDK。**不经过 Rokid AI APP 中转**——比 CXR-L 更底层。Sample 演示了 BT 协议、消息封包等。
+
+**重要事实 (2026-05-27 验证)**：CXR-M v1.1.0 在 https://developerdoc.rokid.com/sdk **未公开发布文档**——官方写"请联系商务合作 `Glasses.BD@rokid.com`"。**但是**用户已经提前从 Rokid 拉到完整文档，存放在：
+
+📍 **`~/Code/Projects/R08-dev/refs/sdks/rokid/CXR-M SDK/`** ⭐ 完整 20 页 HTML 文档（01简介 + SDK导入 + 快速开始 + 8 个功能开发 + 7 个历史版本）
+
+从「01简介.html」抽取的关键设计事实：
+- **CXR-M 跟 Rokid AI APP 互斥**：同一台手机**不能同时装 Rokid AI APP + 用 CXR-M**。设计选边
+- **配套 CXR-S SDK**（眼镜端）— 两端 peer-to-peer 自定义指令，比 CXR-L 的"经 AI APP 中转"快
+- **媒体文件同步走 Wi-Fi P2P Group** ⭐ 高带宽路径（视频流 / 大照片 / 录像）
+- 支持的眼镜 UI 元素：RelativeLayout / LinearLayout / ImageView / TextView / Lottie 动画
+- TTS + 通知 + Toast 推送到眼镜
+- 自定义场景：AI 助手 / 翻译 / 提词器 / 自定义显示
+
+CXR-M 是 phone-bridge 备选方案里最有潜力的一条（直 BLE 控制 + Wi-Fi P2P 大带宽 + 比 CXR-L 更底层）。要做 phone-bridge 优先看 CXR-M，不是 CXR-L。
 
 ### `rokid-mobile/RokidMobileSDKAndroidDemo/` — Rokid Mobile SDK
 Rokid 通用 mobile SDK，主要用于设备绑定、账号管理、固件升级触发。我们的 Cortex 不通过这个走，仅作参考。
