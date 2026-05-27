@@ -1,7 +1,15 @@
 # Glass Client — Design v2.1 (Phase 3b · 裸机重设计)
 
-**Status**: design **PIVOTED** (Zack 2026-05-26) — supersedes v2.0
+**Status**: design **PIVOTED** (Zack 2026-05-26) — supersedes v2.0. **v2.1 + 2026-05-28 amendments** (SoT R10 + R11): HUD is now a SYSTEM_ALERT_WINDOW overlay (not fullscreen Activity); `CameraGate` workaround for AppOps `CAMERA: foreground`; control model unified (C-52). See banner below for §3 amendments.
 **Target hardware**: Rokid Glasses 2 (JBD4020 monochrome-green micro-LED right-eye 480×640 panel; YodaOS-Sprite based on Android Go / Android 12 / Qualcomm 8250 + NXP RT600 DSP)
+
+> ⚠️ **2026-05-28 amendments to §3** (post real-device feedback; constitutional in SoT R10 + R11):
+> - **C-48**: `GlassHudActivity` (transparent fullscreen Activity) is **DELETED**. Replaced by `GlassHudOverlay` — a SYSTEM_ALERT_WINDOW overlay floating above launcher/other apps. Read [IN-APP-UI-DESIGN.md §12 (2026-05-28 session)](IN-APP-UI-DESIGN.md) for the actual code.
+> - **C-49**: `SCREEN_BRIGHT_WAKE_LOCK | ACQUIRE_CAUSES_WAKEUP` acquired while HUD visible (5-min ceiling), released on Idle. Replaces the previous "KEEP_SCREEN_ON Activity flag" approach.
+> - **C-50**: Type scale -30% for real panel density 240 (title 14sp / body 11sp / meta 10sp / footer 9sp). The "Phase 3b — 实现 GlassHudActivity (Compose + 全屏 immersive + KEEP_SCREEN_ON)" todo in §5 is **superseded** by the overlay model — keep §5 for archaeological context, but treat IN-APP-UI-DESIGN as ground truth.
+> - **C-51 (CameraGate)**: any camera-using flow MUST route through `CameraGate.captureViaGate(ctx)`. Direct `CameraCapture.capture` from a Service fails on YodaOS with `Camera "0" disabled by policy`. See [GLASS-SDK-REFERENCE.md §11.6](GLASS-SDK-REFERENCE.md).
+> - **C-52 (unified control)**: card semantics gate on `cardOptions.isEmpty()`. Actionable cards → emitDecision; info-only cards → local dismiss + dynamic TTL. `cardBodyWrapChars` (manual pre-pagination) is **deleted**; `BasicText(softWrap=true)` in `verticalScroll` handles wrap + scroll naturally.
+> - **C-53**: InstructSdk still not used (reaffirms C-37 / C-38).
 
 > 术语：本文档全程用 **Rokid Glasses** 指眼镜本体。R08 是配套智能戒指 ([Halo Ring](../../../Halo-Ring/)) 的代号，不是眼镜代号。Older "R08-series" / "R08-gen" wording in early drafts of this doc was wrong; corrected 2026-05-26.
 **Companion devices**: Halo Ring (**optional** — adds ring gesture input when paired; system works without it because the temple touchpad+buttons handle all interactions)
@@ -163,13 +171,21 @@ val rec = AudioRecord.Builder()
 
 ---
 
-## 3. 架构（v2.1）
+## 3. 架构（v2.1, with 2026-05-28 amendments)
+
+⚠️ The pre-2026-05-28 diagram below is **archaeological**. Actual current architecture:
+- `HudActivity` is **DELETED** (was: transparent fullscreen Activity). Replaced by `GlassHudOverlay` — a SYSTEM_ALERT_WINDOW host that attaches/detaches a ComposeView on state transitions.
+- `ConstellationService` FGS type is `microphone|camera` (not `connectedDevice` — that turned out to be the wrong type; `camera` is needed for the photo shortcut path).
+- All HUD rendering goes through shared `app/src/main/.../hud/composables/AppStateHud.kt` (`CardFrame` wrapping per-state composables).
+- Camera flows route through `CameraGate.captureViaGate(ctx)` (transparent gate Activity) — see §C-51 banner at top.
+
+Treat the diagram below as v2.1-original; the [HANDOFF.md §3.2 module map](../../HANDOFF.md) is the up-to-date layout.
 
 ```
 ┌──────────── Rokid Glasses (YodaOS-Sprite / Android Go) ────────────────┐
 │                                                                          │
-│  ConstellationService (ForegroundService, type=microphone|connectedDevice)│
-│  ├── HudActivity (transparent fullscreen, started/stopped by service)    │
+│  ConstellationService (ForegroundService, type=microphone|camera)        │
+│  ├── ⚠ HudActivity (DELETED 2026-05-28 — now GlassHudOverlay SYSTEM_ALERT_WINDOW) │
 │  │   └── HudComposeView                                                  │
 │  ├── SystemKeyReceiver (BroadcastReceiver — registers SPRITE_BUTTON_*)   │
 │  ├── AudioPipeline (AudioRecord 8-ch 0x6000FC → deinterleave → WSS)      │

@@ -483,6 +483,74 @@ Diagnostics done:
 - Shortcuts page fetch on eyewear sometimes fails on first cold connect (15s not always enough under WoW); subsequent fetches within the same session succeed — workaround: navigate-retry. Manual single-retry on SocketTimeoutException would smooth this; tracked in TODO.
 
 **Still not verified** (need a session with stable WSS to drive them):
-- Vision shortcut E2E from eyewear (`am broadcast shortcut_whats-in-front` → eyewear camera → Cortex → vision_describe → card back to panel)
+- ~~Vision shortcut E2E from eyewear~~ → ✅ verified 2026-05-28 (next section)
 - Voice invoke / Listening / mic capture flow on eyewear
-- Long Card body wrapping at real 320 dp / density 240 (we have one Card frame's worth of data; needs more samples)
+- ~~Long Card body wrapping at real 320 dp / density 240~~ → ✅ verified 2026-05-28; natural Compose wrap renders cleanly
+
+### Rokid Glasses — 2026-05-28 session (HUD overlay + CameraGate + control model + full vision E2E)
+
+This session executed three structural changes + closed two long-running open items.
+
+**1. HUD overlay pivot** (Constellation-Glass `c0f8836` + `830d884`; SoT R10 C-48..C-50)
+
+Real-device wear feedback: "HUD 不要充满一个屏幕, 要让 HUD 真的是 HUD. 你要申请打开这个悬浮在其他应用上面的 overlay 权限, 然后真的悬浮在系统级的最上层" + "字体什么的都能变小一些".
+
+Replaced `GlassHudActivity` (fullscreen transparent) with `GlassHudOverlay` (SYSTEM_ALERT_WINDOW). Both flavors converged on the SYSTEM_ALERT_WINDOW + ComposeView pattern. `OverlayHostOwner` lifted from phoneDebug/ to main/. Added `CardFrame` Composable (rounded 12dp + dim green border + dark fill — transparent on JBD4020 unlit pixels). Type scale -30%: title 22→14sp / body 16→11sp / meta 13→10sp / footer 12→9sp. `SCREEN_BRIGHT_WAKE_LOCK | ACQUIRE_CAUSES_WAKEUP` held while non-Idle (5-min ceiling).
+
+Verified on real Rokid Glasses (`<glass-serial>`): card floats above Rokid Sprite launcher; wearer sees "To wake up the AI assistant, please say 'Hi Rokid'" + status bar (time + WiFi + battery) BENEATH the card. Smaller text renders crisply at density=240. WakeLock keeps panel on during card display.
+
+**2. CameraGate / YodaOS camera gate** (Constellation-Glass `8a2b989` + `591e1d9`; SoT R10 C-51)
+
+Root cause of `ERROR_CAMERA_DISABLED` on the eyewear: **AppOps `CAMERA: foreground` UID mode**. `dumpsys media.camera` showed:
+```
+Uid mode: CAMERA: foreground
+REJECT device 0 client for package com.constellation.glass, reason:
+  connectHelper:1853: Camera "0" disabled by policy
+```
+
+NOT vendor camera-ID / Sprite reservation / missing permission. YodaOS-Sprite strictly requires a RESUMED Activity in our process even with `foregroundServiceType=camera` + explicit `ServiceCompat.startForeground(..., FOREGROUND_SERVICE_TYPE_CAMERA)`. OnePlus 9 (vanilla AOSP) accepts FGS_CAMERA as "in-use"; YodaOS doesn't.
+
+Workaround: `CameraGate.captureViaGate(ctx)` launches one-shot `CameraGateActivity` (transparent `Theme.Translucent.NoTitleBar`, `singleInstance` in own task, `noHistory`). Activity exists ~2s while CameraX captures, returns bytes via `CompletableDeferred`, `finish()`. Mirrors Rokid's own `com.rokid.os.sprite.assist.media.page.CameraActivity` pattern.
+
+**3. Full vision shortcut E2E** verified 2026-05-28 on real Rokid Glasses:
+
+| Step | Observation |
+|---|---|
+| App backgrounded (HOME pressed; Rokid launcher visible) | confirmed via `dumpsys window | grep mResumedActivity` |
+| `adb shell am broadcast -a com.halo.ring.action.TRIGGER --es action_id shortcut_whats-in-front -p com.constellation.glass` | `HaloTriggerReceiver` → `ConstellationService.fireShortcut` → `ShortcutFireClient` |
+| `ShortcutFireClient · id=whats-in-front photo=true` | photo route entered |
+| `CameraGateActivity · onCreate` | transparent gate launched |
+| `CameraCapture · downscaled 6065030B → 165425B (1024px max, q=80)` | eyewear's own camera captured 6 MB → 165 KB |
+| `CameraGateActivity · capture done, bytes=165425; finishing` | gate exits |
+| Cortex classifier → `intent.simple_via_router` + router picks `vision_describe` | C-47 allowlist gates image to vision_describe only |
+| `vision_describe` → OpenAI gpt-5.2 multimodal → prose | ~3s |
+| `glass_frame.emit kind=card` | Cortex → eyewear |
+| `GlassHudSurface · Thinking → Card` + `GlassHudOverlay · attached` | overlay re-attaches over launcher |
+| Real JBD4020 panel shows | **"Photo description: A rotated view of a desk setup shows a large monitor with a code editor open over a mountain-and-sea wallpaper. A smaller white window is open near the bottom, partially washed out by glare on the screen. To the left sits a Sony device with indicator lights and nearby cables, next to a patterned box. ... double-click to dismiss"** |
+
+Real Claude vision output from a frame the eyewear took itself, rendered as a Compose CardHud over the Rokid launcher, during a hands-off shortcut trigger from a backgrounded app. **FULL VISION SHORTCUT E2E.** Screenshot: `/tmp/rokid_vision_card_v2.png`.
+
+**4. HUD control model unification** (Constellation-Glass `e301ef1` + `248b21b`; SoT R11 C-52..C-53)
+
+User feedback after wearing the eyewear:
+1. "这个字的换行还是太窄了" — F1 fix: drop `cardBodyWrapChars` pre-pagination; `BasicText(softWrap=true)` in `verticalScroll(rememberScrollState)`; new `CardScrollBus` SharedFlow plumbs 2F SWIPE input → `animateScrollBy`.
+2. "如果没有这三类操作的卡片的话, 它也应该在我这个前翻后推的时候向下, 后划后也是向上" — F2 fix: info-only cards (`options=[]`) route CLICK/LONG/DOUBLE/2F-DBL to new `dismissCardLocally()` (local-only transition; NO Cortex emit). 2F SWIPE works on all card types via `CardScrollBus`.
+3. "再点击一下...或者这个固定五秒钟多久之后就隐藏掉" — F3 fix: info-only cards get a dynamic TTL `(3s + 50ms × bodyLen).coerceIn(3s, 30s)`. 55-char body closes in 5.75s; 430-char body in 24.5s. Real-device verified.
+4. "用语音来控制的那个 SDK 是不是还能用" — declined again (C-53 reaffirms C-37/C-38). InstructSdk requires Sprite always-on listener; violates energy budget. Voice modify path = LONG_PRESS → cortex emits `mic_open` → Glass Listening → speak → CLICK end → audio_end → cortex re-plans. Server-side whisper does STT.
+
+**5. Detach-on-Idle fix** (Constellation-Glass `248b21b`)
+
+User caught: "close 之后显示不对...把半个身为移出屏幕了, 还有半个身为留在屏幕里". The pre-fix `transition(prev, AppState.Idle)` only called `overlay.wakeOff()` and left the SYSTEM_ALERT_WINDOW attached with an empty Compose tree. Result on JBD4020: last-frame pixels (mid-scrolled body) stayed latched while WakeLock release faded the screen.
+
+Fix: on Card → Idle (or any non-Idle → Idle), `overlay.detach()` calls `wm.removeView()` for real. Re-attach on next non-Idle (~30ms cost, not user-visible). Verified: panel after close shows only Rokid launcher, zero residual card content.
+
+### 2026-05-28 result summary
+
+The eyewear now does the full intended UX end-to-end:
+- HUD is a true floating overlay above the launcher (not a fullscreen takeover)
+- Cards size + height adapt to content; auto-close on body-length-proportional TTL; clean detach
+- Type scale and wrap are tuned for the real panel
+- Camera works for photo shortcuts despite the YodaOS AppOps gate
+- Vision pipeline E2E delivers real prose descriptions of what the wearer sees
+
+**Still ⏸**: P1.5a (voice / Listening flow on eyewear), P1.5b (voice + camera in Listening — pick a/b/c), P1.5c (audio mask acceptance + 24h idle drain + DOUBLE_CLICK behavior + scroll px/swipe tuning).

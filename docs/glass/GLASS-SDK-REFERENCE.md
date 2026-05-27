@@ -408,11 +408,95 @@ QR payload format (must match Edge `/api/auth/pair_qr` output):
 
 `com.google.mlkit:barcode-scanning:17.3.0` 是 **Google Play Services 路径**——需要 GMS。如果将来移植到无 GMS 的 Rokid Glasses build，换 `com.google.mlkit:barcode-scanning:17.3.0` → `barcode-scanning` 同名但 **bundled-model** 版本（同 group/artifact id 但有 bundled variant）—— 模型直接打进 APK，约 +2 MB，不依赖 Play Services。**Rokid Glasses 是否有 GMS 待真机验**（Q.8 任务）。
 
-### 11.5 真机待验 (Q.8)
+### 11.5 真机已验 (2026-05-28)
 
-- ❓ Rokid Glasses 上 GMS 可用性 (决定 ML Kit 是否需要换 bundled-model variant)
-- ❓ Rokid Glasses 摄像头是否正常 open + 拍照
-- ❓ QR scanner preview 在 480×640 panel 上的对焦质量
+- ✅ **GMS works on Rokid Glasses** — ML Kit Barcode (Play Services variant) scanned the QR successfully. No need to switch to bundled-model variant.
+- ✅ **Camera opens + captures** (after CameraGate workaround — see §11.6 below). 6 MB sensor JPEG → 165 KB downscaled @ 1024px q=80, fed to Cortex `vision_describe`, real prose description back to HUD card.
+- ✅ **QR scanner preview** on the JBD4020 panel scanned QR shown on Mac screen in ~4s.
+
+### 11.6 ⚠️ CameraX gotcha — AppOps `CAMERA: foreground` (C-51)
+
+**The trap**: On YodaOS-Sprite (Rokid Glasses), `CameraX.bindToLifecycle()` from
+a backgrounded Service fails with:
+
+```
+Camera2CameraImpl: Unable to open camera due to CAMERA_DISABLED (1):
+  connectHelper:1853: Camera "0" disabled by policy
+```
+
+Even when ALL of these are in place:
+- `<uses-permission android:name="android.permission.CAMERA" />` granted at runtime
+- `<uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />`
+- Manifest `android:foregroundServiceType="microphone|camera"`
+- `ServiceCompat.startForeground(this, NOTIF_ID, notif, FOREGROUND_SERVICE_TYPE_CAMERA)` explicit
+
+**Root cause**: AppOps `CAMERA: foreground` UID mode. YodaOS-Sprite strictly
+enforces "package must have a RESUMED Activity to open camera"; FGS_CAMERA
+type alone doesn't count as "in use" on this firmware (it does on AOSP / OnePlus 9).
+
+Diagnose with: `adb shell dumpsys media.camera | grep -E "Uid mode|REJECT"`
+→ expect `Uid mode: CAMERA: foreground` + `REJECT … Camera "0" disabled by policy`
+when our app is backgrounded.
+
+**Workaround (Constellation-Glass `8a2b989`)**: `CameraGate.captureViaGate(ctx)`
+launches a one-shot transparent gate Activity:
+
+```kotlin
+// app/src/main/.../camera/CameraGate.kt
+object CameraGate {
+    private val mutex = Mutex()
+    private var pending: CompletableDeferred<ByteArray?>? = null
+
+    suspend fun captureViaGate(ctx: Context): ByteArray? = mutex.withLock {
+        val deferred = CompletableDeferred<ByteArray?>()
+        pending = deferred
+        ctx.startActivity(Intent(ctx, CameraGateActivity::class.java).apply {
+            addFlags(FLAG_ACTIVITY_NEW_TASK or FLAG_ACTIVITY_NO_ANIMATION or
+                     FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+        })
+        deferred.await().also { pending = null }
+    }
+    fun complete(result: ByteArray?) { pending?.complete(result) }
+}
+
+class CameraGateActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        lifecycleScope.launch {
+            val bytes = runCatching { CameraCapture.capture(this@CameraGateActivity) }
+                .getOrNull()
+            CameraGate.complete(bytes)
+            finish()
+        }
+    }
+}
+```
+
+Manifest entry (under glass + phoneDebug shared `app/src/main/AndroidManifest.xml`):
+
+```xml
+<activity android:name=".camera.CameraGateActivity"
+    android:exported="false"
+    android:theme="@android:style/Theme.Translucent.NoTitleBar"
+    android:excludeFromRecents="true"
+    android:noHistory="true"
+    android:taskAffinity=""
+    android:launchMode="singleInstance" />
+```
+
+The wearer sees a sub-second panel blink while the Activity exists for ~2s
+(visible because the panel briefly turns "on" for our Activity — even
+though Theme.Translucent.NoTitleBar means no UI is drawn). Then the
+Activity finishes and the panel returns to whatever was below.
+
+**Pattern recognition**: Rokid's own Sprite uses the exact same pattern —
+`com.rokid.os.sprite.assist.media.page.CameraActivity` is its equivalent
+gate. We confirmed via `adb shell dumpsys media.camera` showing that
+package "Device 0 is open" right after a top-temple-button press.
+
+**Rule**: Any feature that needs camera access on Rokid Glasses MUST route
+through `CameraGate.captureViaGate()`. Don't call `CameraCapture.capture()`
+directly from a Service or non-Activity context.
 
 ---
 
