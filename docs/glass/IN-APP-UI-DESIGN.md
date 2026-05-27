@@ -340,10 +340,23 @@ phoneDebug 的 in-app UI = **跟 glass flavor 完全相同的 Composable**，只
 - AboutScreen：版本号 / flavor / 标语 / Halo Ring repo / 开源声明，全静态信息屏
 - 自动从 BuildConfig 读 `VERSION_NAME` + `PLATFORM`
 
-### ⏸ P-app.D 待定
+### ✅ P-app.D Shortcuts — landed 2026-05-26 (text-only fire; CameraX deferred)
 
-Shortcuts (Cortex `/api/shortcuts` + Twin schema + HaloActionsProvider 实装)。
-设计已在 §3 / §7 锁定，等单独排期。
+Five sub-phases shipped:
+
+| Phase | 内容 | 验证 |
+|---|---|---|
+| D.1 | Twin schema (`<!-- shortcut:start --> ...`) + 3 seed shortcuts (`whats-in-front` / `quick-capture-person` / `ocr-save-to-today`) — landed to live twin `~/constellation/twin/skills/shortcuts.md` | parser strips ```` ``` ```` code-fenced blocks → 3 entries parsed |
+| D.2 | Cortex `shortcuts_store.py` + `/api/shortcuts` CRUD (GET/POST/PUT/DELETE). HTML-comment delimited blocks (per-block YAML frontmatter doesn't work for multi-block files). | full CRUD curl cycle verified |
+| D.3 | Glass `ShortcutsClient` + `ShortcutsListScreen` (mockup §2.2) + `ShortcutEditorScreen` (mockup §2.3). MainActivity nav wiring + slugify helper for new ids. | live list shown on OnePlus 9; drill-in editor shows prompt + photo ON toggle correctly |
+| D.4 | `HaloActionsProvider` returns `voice_invoke` + `kill_active` + one row per shortcut as `action_id="shortcut_<id>"`. Reads from new `ShortcutsLocalCache` (no network in `query()`). MainActivity writes cache after every list refresh. | `am broadcast` simulating Halo Ring → receiver fires |
+| D.5.a | `ShortcutFireClient` + `HaloTriggerReceiver` wired. Text-only fire path: `shortcut_<id>` → cache lookup → POST `/api/test/invoke` with cookie. | full E2E from broadcast → HUD card (response: "no photo attached" — D.5.b TODO) |
+
+**D.5.b (deferred)**: CameraX capture for `photo:true` shortcuts. Marked TODO in `ShortcutFireClient.fireById`. Cortex's current response ("re-send with image attached") is correct for the text-only fire — no surprise, just the next sub-phase.
+
+**TODO**:
+- `voice_invoke` / `kill_active` core actions in `HaloTriggerReceiver` are stubbed (log only). Needs `ConstellationService.startListening()` + `StateMachine.kill()` static helpers — a small follow-up.
+- E2E with actual Halo Ring app (current verification uses `adb shell am broadcast` to simulate).
 
 ---
 
