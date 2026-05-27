@@ -935,3 +935,53 @@ StateMachine handles them the same way. Only Glass-side host + visual changed.
 - **Halo Ring profile push** (P1.7) — still optional; not blocking.
 
 ---
+
+## Revision 11 — 2026-05-28 (late): HUD control model unified (C-52 + F1/F2/F3 cleanup)
+
+**Status**: confirmed; code in `e301ef1`. Real-device verified on Rokid Glasses
+(natural wrap visible, dynamic TTL fires correctly per-card-body-length).
+
+### 触发因素
+
+Real-device feedback from Zack wearing the eyewear:
+1. "这个框的大小合适，但这个字的换行还是太窄了" — the card body wrap was still
+   hard-coded at 40 chars regardless of container width
+2. "现在 HUD 也没有展示出它的确认、修改跟掐掉" — actionable cards weren't visible
+   (turned out: all triggered shortcuts → info-only cards; never saw the
+   approve/modify/kill three-key footer)
+3. "如果没有这三类操作的卡片的话，它也应该在我这个前翻后推的时候向下" + "或者
+   这个固定五秒钟多久之后就隐藏掉" — info-only cards needed scroll input + TTL
+4. Voice SDK question — re-evaluate InstructSdk for card modify path
+
+### 新约束（追加到 §8）
+
+| 编号 | 约束 | 用户原话依据 |
+|---|---|---|
+| **C-52** | **Unified HUD control model — card semantics gate on `cardOptions` non-empty**: An "actionable" card (`options=["approve","modify","kill"]` or similar) routes CLICK / LONG / DOUBLE to `emitDecision(..)` → Cortex. An "info-only" card (`options=[]`) routes the SAME physical inputs to `dismissCardLocally()` — local transition to Idle, **no Cortex frame emitted** (Cortex isn't expecting a decision; the response was a one-way info push). Info-only cards also auto-close on a TTL dynamically sized by body length: `(3s + 50ms × bodyCharLen).coerceIn(3s, 30s)` — calibrated for ~200 wpm reading speed. 2F SWIPE FORWARD/BACK on either card type triggers `CardScrollBus.emit(Down/Up)` → Compose `animateScrollBy` inside CardHud (verticalScroll bounded by `HudTheme.cardBodyMaxHeightDp=240dp`). | "这个字的换行还是太窄了" / "如果没有这三类操作的卡片的话，它也应该在我这个前翻后推的时候向下" / "固定五秒钟多久之后就隐藏掉" + 设计反复对话 2026-05-28. |
+| **C-53** | **No InstructSdk integration — voice "modify feedback" rides on physical-key-mediated mic**: Reaffirms the existing C-37/C-38 stance. The card's Modify path is: actionable card on screen → user LONG_PRESS → `emitDecision("Modify")` → Cortex emits `mic_open` frame → Glass enters Listening with cardId context → user speaks freely → CLICK to end (or 15s hard cap) → `audio_end` to Cortex → Cortex re-plans with feedback → new card. NO Sprite "语音助手激活" toggle dependency; NO always-on listener; energy budget intact. Server-side STT (whisper) handles the transcription. | "如果只能够拿语音和操作来控制的话，那就是语音的时候，这卡片来了之后就要开放语音" — confirms C-37+C-38 are still the model; InstructSdk reconsideration declined as it'd require Sprite always-on. |
+
+### Render-layer architecture changes
+
+- **CardScrollBus** singleton SharedFlow: per-flavor HudSurfaces emit scroll commands → Compose CardHud Composable subscribes + applies via `scrollState.animateScrollBy`. Replaces the pre-F1 model where `ScrollWindow.wrap()` pre-paginated the body at fixed char count and mutated `cardScrollPos/cardScrollTotal` on the snapshot.
+- **HudTheme.cardBodyWrapChars** + **cardBodyVisibleLines** REMOVED. Replaced by `cardBodyMaxHeightDp = 240.dp` + `cardScrollPxPerSwipe = 150f`. Text wraps naturally by container width; overflow scrolls.
+- **CardHud Composable** indicator: dynamic ▲/▼ based on `scrollState.canScrollBackward / canScrollForward`. No more "▼ 1/3" stale page math.
+
+### Diff to existing constraints
+
+- C-31 (3-button card) — softened: actionable card still 3-button; info-only card has no button semantic on Cortex side, only local dismiss + scroll + TTL.
+- C-37 (energy first) — reinforced: C-53 declines InstructSdk reconsideration explicitly.
+- C-38 (physical key primary) — unchanged.
+- C-48 (HUD overlay) — unchanged. The architecture is correct; only the within-card UX shifted.
+- C-49 (wake-on-while-visible) — unchanged. Info-only card TTL is independent.
+
+### Open Questions
+
+- **OQ-R11-1**: F2 manual-dismiss path (CLICK / DOUBLE on info-only card → dismissCardLocally) wasn't verified via adb (broadcast `ACTION_SPRITE_BUTTON_CLICK` is system-protected). Requires a physical button press on the eyewear. Code path is straightforward; flagged for first-physical-test cycle.
+- **OQ-R11-2**: `cardScrollPxPerSwipe = 150f` is an empirical guess. On a real card that exceeds `cardBodyMaxHeightDp = 240dp`, see whether one swipe = ~3 lines feels natural. Will likely need a 100..200 px tune knob.
+
+### 实施影响
+
+Single commit: Constellation-Glass `e301ef1` "HUD control overhaul F1+F2+F3+F4".
+Real-device verified 2026-05-28 (natural wrap + dynamic TTL — 5750ms for 55-char body, 24500ms for 430-char body — both fired correctly).
+
+---
