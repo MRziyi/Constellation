@@ -985,3 +985,62 @@ Single commit: Constellation-Glass `e301ef1` "HUD control overhaul F1+F2+F3+F4".
 Real-device verified 2026-05-28 (natural wrap + dynamic TTL — 5750ms for 55-char body, 24500ms for 430-char body — both fired correctly).
 
 ---
+
+## Revision 12 — 2026-05-27: 侧键 fresh-voice 入口被 Sprite AssistServer 平行劫持 → fresh voice 入口改走戒指广播
+
+**Status**: real-device-confirmed on Rokid Glasses (`<glass-serial>`) during P1.5a smoke test, 2026-05-27 14:26.
+
+### 发现
+
+跑 P1.5a 真机 voice smoke test 时（单击侧键 → Listening → 6.7s 说话 → 再按一次结束 → Cortex 返回 Card），系统同时报了语音错误 "Camera is error, couldn't take the photo now"。logcat 还原出根因：
+
+```
+14:26:41.657  WindowManager:   interceptKeyTq KEYCODE_SPRITE_FUNCTION
+14:26:41.676  AssistServer:    FunctionKeyReceiver → ACTION_SPRITE_BUTTON_UP
+14:26:41.682  AssistServer:    SpriteMediaService → MSG_TAKE_PICTURE → picture_no_ui
+14:26:41.756  CameraService:   Camera 0 opened by "com.rokid.os.sprite.assistserver"
+```
+
+系统级进程 `com.rokid.os.sprite.assistserver` (UID 1000) 在 **WindowManager KeyEvent 层**平行拦截 `KEYCODE_SPRITE_FUNCTION`，每次侧键 UP 触发**静默后台拍照**。这跟我们的 `SystemKeyReceiver`（有序广播 + `priority=100 + abortBroadcast()`）走的是**两条互不相干的路径**。abortBroadcast 拦不住 KeyEvent 层路径。
+
+mic 已被 AudioRecord (0x6000FC 8-ch) 占用 + AssistServer 同时抢相机 → 拍照失败 → Sprite TTS 播报"Camera is error"。**没有公开的应用层 SDK 路径关掉这个**。
+
+### 决策
+
+| | |
+|---|---|
+| **C-38** | **未变**：物理按键（CLICK/LONG/DOUBLE/2F）仍然是 Constellation 的主输入路径 |
+| **C-54** | **新增**：fresh voice invoke（从 IDLE 进 Listening 这条路径）**入口实际改走 Halo Ring 广播**，不再用侧键 CLICK in IDLE。Ring 触发 → `HaloTriggerReceiver` → `voice_invoke` 路径 → ConstellationService 直接进 Listening。完全避开 KEYCODE_SPRITE_FUNCTION → AssistServer。|
+
+侧键在 **Card 状态内**继续用（Approve/Modify/Kill；AssistServer 此时拍照失败可接受）。
+侧键在 **IDLE 状态**仍然会触发我们 app 进 Listening，**但不作为推荐入口**——理由是会触发 AssistServer 平行拍照 + 语音报错。
+
+### 替代路径（未来可重新评估）
+
+| 路径 | 侵入度 | 何时考虑 |
+|---|---|---|
+| 戒指广播作为 fresh voice 入口 | ✅ 零 | **当前方案** |
+| Rokid AI App 手机端关"按键拍照" | 低 | 待用户在手机配对 app 里翻设置确认是否有此开关 |
+| `pm disable-user com.rokid.os.sprite.assistserver` | 中（影响其他 Sprite 功能） | 如果 Halo Ring 不可用且需要侧键作 fresh voice |
+| 替换默认 launcher（per `ReplaceLauncher.md`） | 高 | 走全独占模式时再考虑 |
+
+### 副带 finding（P1.6c 已修）
+
+P1.5a 同次跑出还发现：StateMachine `dispatch()` 把 Cortex 同时发的 legacy `preview_action` frame 当作 `unhandled kind=`（噪音 log）。Cortex `_send_command` 把 legacy Command + glass-shaped frame 都发，glass-shaped 是 authoritative，legacy 是冗余。Glass 端补 `preview_action / hud_show / tool_card` 三个 kind 的 silent ignore 分支。Constellation-Glass `edfb3ba`。**纯日志清理，零行为变化**。
+
+### Diff to existing constraints
+
+- **C-37** 能效第一 — 未变. 戒指广播路径仍然 zero-idle-mic.
+- **C-38** 物理按键主输入 — 未变, 但 fresh voice 子路径换通道.
+- **C-44** Shortcut = fire-and-forget no mic — 未变.
+- **C-53** No InstructSdk — 未变 (戒指广播是 broadcast intent, 不依赖 Sprite voice).
+
+### 真机收获总结（同次跑出）
+
+- ✅ `setChannelMask(0x6000FC)` 真机接受 — closes a multi-week unknown
+- ✅ 8-channel deinterleave → ch0 → whisper → Card 全链路通
+- ✅ Halo Ring 触发的 voice_invoke 路径仍然可用（之前 Q phase 验过）
+- ⚠ 侧键 in IDLE 不推荐作为 fresh voice 入口
+- 📌 OQ-R12-1（先前列在 R-11）— 关于 listening 中 camera capture 三选一方案 (a/b/c)，现在视角变了：戒指广播作 fresh voice 入口后，"voice + camera" 仍然是开放设计问题，但**入口已不是侧键**
+
+---

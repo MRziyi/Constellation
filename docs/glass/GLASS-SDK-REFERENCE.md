@@ -168,12 +168,40 @@ registerReceiver(keyReceiver, IntentFilter().apply {
 - Service 内注册 (我们这样做)
 - `priority=100` + `abortBroadcast()` 拦截除 DOUBLE_CLICK 外的所有按键的系统默认行为
 
-### 3.6 真机待验
+### 3.6 ⚠ Sprite AssistServer 侧键平行劫持（2026-05-27 真机发现）
+
+**SDK 文档没说**：右镜腿**侧面按键** **不是**纯属应用 — 系统级 `com.rokid.os.sprite.assistserver` (UID 1000, PID 一直在) 在 **WindowManager KeyEvent 层** 平行拦截 `KEYCODE_SPRITE_FUNCTION`，每次 ACTION_SPRITE_BUTTON_UP 触发**静默后台拍照** (`MSG_TAKE_PICTURE → picture_no_ui`)。
+
+**证据**（真机 logcat，2026-05-27 14:26:41，单击侧键）：
+```
+WindowManager       interceptKeyTq  KEYCODE_SPRITE_FUNCTION
+AssistServer        FunctionKeyReceiver → ACTION_SPRITE_BUTTON_UP
+AssistServer        SpriteMediaService → MSG_TAKE_PICTURE → picture_no_ui
+AssistServer        Camera2FuncImpl → openCamera: openSource=picture_no_ui
+CameraService       connect "com.rokid.os.sprite.assistserver" camera ID 0
+```
+
+**含义**：
+- 我们的 `SystemKeyReceiver` + `priority=100 + abortBroadcast()` 只能拦截 **有序广播链**，拦不了 KeyEvent → AssistServer 的平行路径
+- 我们的 AudioRecord 已经开着 mic + AssistServer 同时抢相机 → AssistServer 报"Camera is error, couldn't take the photo now"（语音播报）+ 拍出来的照片可能损坏
+- **这条路径无法用我们 app 代码消除**
+
+**对策**（按侵入度排）：
+- **A) 走戒指广播**作为 fresh voice invoke 主入口（Halo Ring → `HaloTriggerReceiver` → `voice_invoke` → ConstellationService），完全避开侧键。**当前方案 (2026-05-27)**。
+- **B) 在 Card 内才用侧键**：只用 CLICK/LONG/DOUBLE 做 Approve/Modify/Kill（已在卡片状态中）— 此时 AssistServer 拍照失败更可接受（mic + camera 都占着）。
+- **C) `pm disable-user com.rokid.os.sprite.assistserver`**（侵入式）— 彻底关掉 Sprite，副作用未知（可能影响其他系统功能）。**当前不做**。
+- **D) Rokid AI App 手机端**：在配对眼镜的手机 app 里关"按键拍照"（如果有这个开关）— 待用户确认。
+
+→ 在 SoT 里登记为新 finding；C-38 主输入路径维持，但 "fresh voice invoke" 实际入口改为戒指。
+
+### 3.7 真机待验
 
 - ❓ LONG_PRESS 的精确时长阈值 (官方未公开) — 关键 UX 数据
 - ❓ 系统是 key-down 还是 key-up 时触发 LONG_PRESS
 - ❓ DOUBLE_CLICK 时整个 process 被杀还是只关 Activity (我们 Service 是否还活着)
 - ❓ 拍照/录像 按钮 (上方) 操作时，正在跑的 `AudioRecord` 是否被抢占
+- ✅ 侧面按键 SPRITE_BUTTON_* 广播被我们收到 — **2026-05-27 实机确认**
+- ✅ `setChannelMask(0x6000FC)` 真机接受 — **2026-05-27 实机确认** (`GlassAudioCapture · started · 0x6000FC 8-ch → ch0`)
 
 → `reference/rokid-glass/bare-metal-docs/01-key-events.md` (含完整 Kotlin sample)
 
