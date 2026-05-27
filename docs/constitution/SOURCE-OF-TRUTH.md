@@ -768,3 +768,90 @@ Cortex 对 glass peer 的 frame 翻译表 (在 `_send_command()` 中) **新增�
 - **Cortex 协议层**: 完整列出 Cortex 还可能发但 Glass 不识的 frame kind, 看是否还有类似 P1.6b 的隐藏 gap.
 
 ---
+
+
+## Revision 9 — 2026-05-26 (EOD): In-app settings UI + Shortcuts + Camera + QR-pair login
+
+**Status**: confirmed by Zack; code shipped across Constellation-Glass (`7cd9261` → `c179a42`), Constellation-Server (`83bba42` → `879587c`), Constellation-Console (`737819f`). Glass APK installed to real Rokid Glasses (<glass-serial>) for first-time hardware contact — LoginScreen renders correctly on the 480×640 panel @ density=240.
+
+### 触发因素
+
+P-app sequence: A (Compose NavHost + Connect screen + EndpointStore + Service handoff) → B (Cortex `/api/ping`) → C (AboutScreen) → D (Shortcuts CRUD + UI + Halo Ring plugin protocol completion) → Q (Camera + QR login). Final state:
+
+- Full settings UI runs **on the eyewear panel** (per Zack 2026-05-26: "不可能 configure on phone, 就用现在的 HUD, 就用详细的应用内设置界面")
+- Shortcuts are **one-tap fire-and-forget** (preset prompt + optional photo; no mic — explicit user clarification 2026-05-26 EOD)
+- **QR-code pairing** replaces password-on-eyewear (无键盘的眼镜上根本输不进密码)
+- Camera path also serves shortcut photo capture (`whats-in-front?` etc.)
+
+### 新约束（追加到 §8）
+
+| 编号 | 约束 | 用户原话依据 |
+|---|---|---|
+| **C-44** | **Shortcut = 一键 fire-and-forget**：preset prompt + optional photo，**没有 mic 字段**。若一个触发想开 mic，那就不是 shortcut，是普通的 voice invoke。 | "shortcut 就是可能点一下戒指或者按下某个快捷键，它自动填一段 prompt 发过去...我不用说话". |
+| **C-45** | **CameraX 拍照走 downscale-and-recompress**：1024px longest edge + JPEG q=80。Headless（无 preview surface）；Service-mediated（不在 BroadcastReceiver 里跑 — 受 ~10s budget 限制）；FGS type 必须含 `camera`（Android 14+ block 后台 camera open without it）。 | 1.7MB → 70KB observed；user pushed for compression. |
+| **C-46** | **眼镜端登录走 QR pairing，不走密码键入**：Web Console → /about 渲染 `{endpoint, cookie_name, cookie_value}` JSON QR；眼镜 `LoginScreen` SCAN QR 扫一下 → 直接进 Main。第一次登录后 cookie 永久 (per Revision 8 C-41 follow-up — no logout)。 | "眼镜扫QR码吧，QR码内部就是密码的字符串". |
+| **C-47** | **Cortex dispatcher 携带 image 不解释**：当 `user_invoke` 携带 `image_b64`，dispatcher (router/classifier) 仍只读 `text` 做路由决策；image 作为 **opaque metadata** 流过每个 subtask 的 args。需要看图的 tool (vision_describe / OCR / face-rec) 在 args 里拿；不需要的 tool 忽略它。**目前未实施 → Q.4.5 ticket**。 | "由 dispatcher 根据 prompt 来决定这个图像要不要递给下一个工具...Dispatcher 本身应该也没必要知道这个图像". |
+
+### 协议契约修正（影响 INTERFACE-CONTRACTS）
+
+| Glass → Cortex frame | 新增字段 |
+|---|---|
+| `user_invoke` | `image_b64` (optional) — base64 JPEG, ≤~100 KB after Glass-side downscale. |
+
+| Cortex → Glass frame | 不变 |
+
+### 应用层新协议：Web Console ↔ Glass via QR
+
+Web Console emits `GET /api/auth/pair_qr` (auth-gated, returns JSON
+`{endpoint, cookie_name, cookie_value}` where endpoint is derived from
+request Host header). Glass scans, parses, persists; no other endpoints
+required on the Console / Edge side.
+
+### Diff to existing constraints
+
+- **C-37 (energy first)**: 不变. Camera open in Service (FGS) keeps it bounded; idle drain = 0 (camera closed when no shortcut firing).
+- **C-38 (physical key primary)**: 不变. Shortcut fire from Halo Ring gesture is an *alternative* input modality; physical-key flow is intact.
+- **C-40 (flavor split)**: 不变. CameraCapture + QrScanner live in `main/` (shared); both flavors get them.
+- **C-41 (Compose only)**: 不变. CameraX preview hosted via AndroidView in Compose works correctly.
+- **C-31 (3-button)**: 不变 — shortcuts bypass the 3-button decision phase (no card, fire直接走). The response card (if any) still follows the 3-button contract.
+
+### Open Questions
+
+- **OQ-R9-1**: Rokid Glasses 是否有 GMS? ML Kit Barcode 当前用 `com.google.mlkit:barcode-scanning:17.3.0` Play Services 路径; 若无 GMS 需切 bundled-model variant (+~2 MB APK). Q.8 真机验.
+- **OQ-R9-2**: Rokid Glasses 摄像头的物理上方按钮是系统 occupied (拍照/录像). 我们的 CameraX 后台 open 是否会与系统拍照功能冲突? Q.8 真机验.
+- **OQ-R9-3**: `cardBodyWrapChars=42` 在 Rokid Glasses 320 dp 内容宽 × sans-serif 上的实际字符容量? 等真机 logcat 测量.
+
+### 实施影响
+
+**新文档**:
+- `docs/glass/IN-APP-UI-DESIGN.md` (v2 — eyewear-resident, key-driven; v3 — Phase Q + verification log)
+- `docs/glass/P1.6-COMPOSE-MIGRATION.md` (历史，仍保留)
+- `twin-seed/skills/shortcuts.md` — shortcut schema + 3 seed
+
+**Constellation-Glass**:
+- 完整 in-app settings UI in `app/src/main/.../app/` (NavHost) and `app/src/main/.../app/ui/` (Compose screens) — 5 screens
+- `EndpointStore` (DataStore-backed runtime-editable endpoint)
+- `camera/CameraCapture.kt` + `camera/QrScanner.kt`
+- `ShortcutsClient` + `ShortcutsLocalCache` + `ShortcutFireClient`
+- `HaloActionsProvider` returns Core + Shortcuts cursor
+- `HaloTriggerReceiver` routes core actions + shortcut_* triggers
+- `ConstellationService` exposes static `startListening` / `killActive` / `fireShortcut` helpers (volatile `instance` ref)
+
+**Constellation-Server**:
+- `cortex/shortcuts_store.py` + `/api/shortcuts` CRUD
+- `cortex/http.py` `/api/ping` lightweight liveness probe
+- `_send_command` fixes (P1.6b `hud_show` translation, `emit_card` truthiness)
+- `agent-finished-card` body prefers `structured.summary` over raw `result_text`
+
+**Constellation-Console**:
+- `edge/console_edge/auth.py` `/api/auth/pair_qr` endpoint
+- `web/src/routes/About.tsx` — QRCodeSVG render of pair bundle
+- `App.tsx` + `Layout.tsx` `/about` nav entry
+
+### 待办（推到下个 phase）
+
+- **Q.4.5 Cortex vision passthrough** (C-47 实施) — dispatcher 通过 image 给 vision tool。新增 `vision_describe` adapter 或类似. 见 [TODO.md `Q.4.5`](../../TODO.md).
+- **Q.8 Phase Q deploy + Rokid Glasses E2E** — deploy edge + web; OnePlus 9 + 真眼镜两端测 QR 流程.
+- **Halo Ring profile push** (P1.7) — still optional; not blocking.
+
+---

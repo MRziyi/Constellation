@@ -352,15 +352,30 @@ Five sub-phases shipped:
 | D.4 | `HaloActionsProvider` returns `voice_invoke` + `kill_active` + one row per shortcut as `action_id="shortcut_<id>"`. Reads from new `ShortcutsLocalCache` (no network in `query()`). MainActivity writes cache after every list refresh. | `am broadcast` simulating Halo Ring → receiver fires |
 | D.5.a | `ShortcutFireClient` + `HaloTriggerReceiver` wired. Text-only fire path: `shortcut_<id>` → cache lookup → POST `/api/test/invoke` with cookie. | full E2E from broadcast → HUD card (response: "no photo attached" — D.5.b TODO) |
 
-**D.5.b (deferred)**: CameraX capture for `photo:true` shortcuts. Marked TODO in `ShortcutFireClient.fireById`. Cortex's current response ("re-send with image attached") is correct for the text-only fire — no surprise, just the next sub-phase.
+### ✅ Phase Q — Camera (photo capture) + QR-code login — landed 2026-05-26 EOD
 
-**TODO**:
-- `voice_invoke` / `kill_active` core actions in `HaloTriggerReceiver` are stubbed (log only). Needs `ConstellationService.startListening()` + `StateMachine.kill()` static helpers — a small follow-up.
-- E2E with actual Halo Ring app (current verification uses `adb shell am broadcast` to simulate).
+Eight sub-phases shipped after P-app.D.5.a, fulfilling the two carry-forward TODOs above (CameraX for photo shortcuts + on-eyewear login UX):
+
+| Phase | 内容 | 验证 |
+|---|---|---|
+| Q.1 | `ConstellationService.startListening(ctx)` + `killActive(ctx)` static helpers via a volatile `instance` ref. `HaloTriggerReceiver` routes `voice_invoke` + `kill_active` to them. | `am broadcast voice_invoke` → Idle → Listening ✓ |
+| Q.2 | CameraX 1.4.0 + ML Kit Barcode 17.3.0 + lifecycle-process + kotlinx-coroutines-guava deps. CAMERA runtime permission + **FOREGROUND_SERVICE_CAMERA** declared in main/glass/phoneDebug manifests. ConstellationService FGS type → `microphone\|camera` (Android 14+ blocks background camera access without it — confirmed via ERROR_CAMERA_DISABLED on first try). | Both flavors build clean |
+| Q.3 | `camera/CameraCapture.kt` — headless one-shot photo. ProcessCameraProvider + one-shot LifecycleOwner (main-thread state transitions). Downscale to **1024px longest edge + JPEG q=80**: 1,799,426 B → 70,137 B (**25× reduction**, no visible quality loss for LLM vision). | 70 KB JPEG verified on OnePlus 9 |
+| Q.4 | `ShortcutFireClient` photo path: `if (sc.photo) CameraCapture.capture(ctx)` → Base64 → `image` field on POST `/api/test/invoke`. **Service-mediated firing** (`ConstellationService.fireShortcut`) — the 10s BroadcastReceiver budget can't cover camera bring-up + capture + base64 + HTTP. Service uses its own CoroutineScope. | E2E: `am broadcast shortcut_whats-in-front` → capture → POST → HUD Thinking → Card. |
+| Q.5 | `camera/QrScanner.kt` — Composable wrapping CameraX `PreviewView` via AndroidView + `ImageAnalysis` use case + ML Kit `BarcodeScanning` constrained to `FORMAT_QR_CODE`. First valid QR rawValue fires `onDetected` once. | Built; visual E2E pending Q.8 deploy |
+| Q.6 | `LoginScreen` gains a `SCAN QR` button alongside AUTHORIZE (50/50 Cta row). `LoginGate` keeps a `scanning` state — when true, replaces LoginScreen with `QrScanLoginOverlay` (full-screen scanner + hint + CANCEL). QR payload parsed as `{endpoint, cookie_name, cookie_value}` JSON → writes both to EndpointStore + CookieStore → jumps to Main. | Built; visual E2E pending Q.8 |
+| Q.7 | **Edge** `/api/auth/pair_qr` — auth-gated, derives endpoint from request Host header, returns `{endpoint, cookie_name, cookie_value}`. **Web Console** new `/about` route with `QRCodeSVG` 256×256 (white padding) + endpoint/cookie metadata + security warning. `qrcode.react` npm dep (via pnpm). Build green. | Pending deploy + scan E2E |
+| Q.8 | Deploy edge + web + scan E2E on OnePlus 9 then Rokid Glasses | ⏸ **pending** |
+
+### Q.4.5 — Cortex vision passthrough (open ticket)
+
+Per Zack 2026-05-26 EOD: Glass already ships image bytes with the prompt via `image_b64`. Cortex's router currently only tags the prompt `(photo attached)` — doesn't pass the image to downstream tools. The dispatcher needs to treat the image as **opaque metadata** that travels with the request through every subtask's args; the routing decision uses only the prompt text. A vision-aware tool adapter (e.g. `vision_describe` calling Claude/GPT-4o vision directly) becomes the destination for image-aware prompts. See [TODO.md `Q.4.5`](../../TODO.md).
 
 ---
 
-## 12. 端到端真机验证日志（OnePlus 9, 854afb6b）
+## 12. 端到端真机验证日志（OnePlus 9, 854afb6b · Rokid Glasses <glass-serial>）
+
+### P-app.A/B/C — Settings UI (OnePlus 9)
 
 | 步骤 | 期望 | 结果 |
 |---|---|---|
@@ -375,3 +390,38 @@ Five sub-phases shipped:
 | About → system back | 回 Main | ✅ |
 | Main → system back | `topResumedActivity=launcher`；Service 仍 alive | ✅ |
 | Service 后台时，HUD overlay 自动重新 attach | foreground watcher 工作正常 | ✅ |
+
+### P-app.D — Shortcuts (OnePlus 9)
+
+| 步骤 | 期望 | 结果 |
+|---|---|---|
+| Main → tap Shortcuts | List 显示 3 个 seed shortcuts (`whats-in-front` / `quick-capture-person` / `ocr-save-to-today`) | ✅ |
+| Tap 任一 shortcut | Editor 打开，prompt + photo ON 正确预填 | ✅ |
+| Cortex `/api/shortcuts` GET/POST/PUT/DELETE | full CRUD cycle via curl | ✅ |
+| `am broadcast TRIGGER --es action_id shortcut_whats-in-front` | Receiver 收到 → ShortcutFire (text-only D.5.a) → Cortex Card 响应 "no photo attached" (text path correct) | ✅ |
+| `am broadcast shortcut_whats-in-front` **after Phase Q** | CameraCapture 70 KB JPEG → POST `/api/test/invoke` with `image` field → Cortex event_id returned | ✅ |
+
+### P-app.Q — Camera + QR login
+
+| 步骤 | 期望 | 结果 |
+|---|---|---|
+| `am broadcast voice_invoke` | StateMachine Idle → Listening | ✅ |
+| `am broadcast kill_active` | StateMachine Listening → Idle | ✅ |
+| Photo capture downscale | 1.7 MB → 70 KB at 1024px / q=80 | ✅ |
+| FGS_CAMERA type declared | Service can keep camera in background | ✅ |
+| QR scanner / SCAN QR button on LoginScreen | code complete, visual E2E **pending Q.8 deploy** | ⏸ |
+| Edge `/api/auth/pair_qr` | code complete, returns JSON bundle when auth'd | ⏸ |
+| Web Console `/about` QR render | qrcode.react 256×256 white padding, build clean | ⏸ |
+
+### Rokid Glasses <glass-serial> — first device contact
+
+| Step | Observation |
+|---|---|
+| `adb install` glass APK | Success (P1.5 baseline) |
+| Launch MainActivity → LoginScreen render | **480 × 640 px, density 240 (hdpi)** — first real measurement of `Resources.getDisplayMetrics().densityDpi` on the panel. Logical content area = 320 × 426 dp. |
+| Visual: Compose Login renders crisply | Title bold green + endpoint monospace + password field + AUTHORIZE button all legible at 480×640 |
+| Cookie missing → expected Login | ✓ (no cookie carried from elsewhere) |
+
+**Implications**:
+- `HudTheme` dp values render at × 1.5 px (240 / 160 baseline). Our `panelWidthDp = 480.dp` constant is a misleading name — actual content area at density 240 is 320 dp. Doesn't break anything (we use `fillMaxSize()` for sizing) but should rename / comment for clarity.
+- `cardBodyWrapChars = 42` was tuned on the OnePlus simulator. On Rokid Glasses 320 dp content width with sans-serif body, real char-width should be measured on first text-rendering pass.

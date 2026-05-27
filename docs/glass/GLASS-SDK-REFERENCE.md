@@ -226,14 +226,21 @@ registerReceiver(keyReceiver, IntentFilter().apply {
 ```xml
 <service
     android:name=".ConstellationService"
-    android:foregroundServiceType="microphone|connectedDevice"
+    android:foregroundServiceType="microphone|camera"
     android:exported="false" />
 
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
+<uses-permission android:name="android.permission.CAMERA" />
 ```
+
+**Why `camera` type**: Phase Q.3 (shortcut photo capture) needs the Service
+to hold camera access from a background-effective context. Android 14+
+blocks background camera open without `FOREGROUND_SERVICE_TYPE_CAMERA`
+declared. Confirmed via `ERROR_CAMERA_DISABLED` from `Camera2CameraImpl`
+the first time we tried without it.
 
 ### 5.2 启动模板
 
@@ -244,7 +251,7 @@ val n  = NotificationCompat.Builder(this, CHAN_ID)
     .setSmallIcon(R.drawable.ic_status)
     .setOngoing(true)
     .build()
-startForeground(NOTIF_ID, n, FOREGROUND_SERVICE_TYPE_MICROPHONE or FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+startForeground(NOTIF_ID, n, FOREGROUND_SERVICE_TYPE_MICROPHONE or FOREGROUND_SERVICE_TYPE_CAMERA)
 ```
 
 ### 5.3 Doze / Standby 期间行为
@@ -342,7 +349,74 @@ Rokid Glasses  ──HTTPS/WSS──►  Linux Edge (edge.example.com, DigitalOc
 
 ---
 
-## 10. 源文档定位 (这份速查从哪儿来)
+## 10. 摄像头 (CameraX) + QR (ML Kit) — Phase Q
+
+### 11.1 依赖
+
+```kotlin
+// app/build.gradle.kts
+implementation("androidx.camera:camera-core:1.4.0")
+implementation("androidx.camera:camera-camera2:1.4.0")
+implementation("androidx.camera:camera-lifecycle:1.4.0")
+implementation("androidx.camera:camera-view:1.4.0")
+implementation("com.google.mlkit:barcode-scanning:17.3.0")
+implementation("androidx.lifecycle:lifecycle-process:2.8.4")
+implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.9.0")
+```
+
+### 11.2 Headless 一次性拍照 (shortcut photo=true)
+
+代码在 `app/src/main/.../camera/CameraCapture.kt`。要点：
+
+| 项 | 值 / 实现 |
+|---|---|
+| Use case | `ImageCapture.Builder().setCaptureMode(CAPTURE_MODE_MINIMIZE_LATENCY)` |
+| 输出 | 直接 JPEG bytes via `image.planes[0].buffer` (CAPTURE_MODE_MINIMIZE_LATENCY → JPEG, not YUV) |
+| Lifecycle | `OneShotLifecycleOwner` (主线程上 INITIALIZED → CREATED → STARTED → RESUMED) → bindToLifecycle → takePicture → destroy + unbindAll |
+| Camera | `CameraSelector.DEFAULT_BACK_CAMERA` |
+| 后处理 | Decode JPEG → `BitmapFactory` `inSampleSize` 粗缩 → `Bitmap.createScaledBitmap` 精确到 1024 longest edge → `compress(JPEG, 80)` |
+
+**Observed on OnePlus 9**: 4096×3072 sensor JPEG ~1.8 MB → 1024×768 ~70 KB (25× reduction). LLM vision rarely benefits from more.
+
+**坑**：
+- `LifecycleRegistry.setCurrentState()` must be called from the main thread. Stateful init in the constructor crashes when called from `Dispatchers.IO`.
+- Camera bind also wants the main thread.
+- BroadcastReceiver's ~10s budget can't cover full capture+upload — route via Service. We do this through `ConstellationService.fireShortcut(ctx, sid)`.
+
+### 11.3 QR 扫码 (login pairing)
+
+代码在 `app/src/main/.../camera/QrScanner.kt`。要点：
+
+| 项 | 值 / 实现 |
+|---|---|
+| Preview | `androidx.camera.view.PreviewView` wrapped in `AndroidView` for Compose |
+| Decoder | `BarcodeScanning.getClient(BarcodeScannerOptions.Builder().setBarcodeFormats(FORMAT_QR_CODE).build())` |
+| Analyzer | `ImageAnalysis.Builder().setBackpressureStrategy(STRATEGY_KEEP_ONLY_LATEST)` |
+| Lifecycle | `LocalLifecycleOwner.current` (the hosting Activity) |
+| Fire-once | `var fired by remember mutableStateOf(false)` — first valid `QR_CODE.rawValue` triggers `onDetected`, subsequent ignored |
+
+QR payload format (must match Edge `/api/auth/pair_qr` output):
+```json
+{
+  "endpoint": "wss://edge.example.com/ws/glass",
+  "cookie_name": "console_session",
+  "cookie_value": "<token>"
+}
+```
+
+### 11.4 ML Kit Barcode 模型
+
+`com.google.mlkit:barcode-scanning:17.3.0` 是 **Google Play Services 路径**——需要 GMS。如果将来移植到无 GMS 的 Rokid Glasses build，换 `com.google.mlkit:barcode-scanning:17.3.0` → `barcode-scanning` 同名但 **bundled-model** 版本（同 group/artifact id 但有 bundled variant）—— 模型直接打进 APK，约 +2 MB，不依赖 Play Services。**Rokid Glasses 是否有 GMS 待真机验**（Q.8 任务）。
+
+### 11.5 真机待验 (Q.8)
+
+- ❓ Rokid Glasses 上 GMS 可用性 (决定 ML Kit 是否需要换 bundled-model variant)
+- ❓ Rokid Glasses 摄像头是否正常 open + 拍照
+- ❓ QR scanner preview 在 480×640 panel 上的对焦质量
+
+---
+
+## 11. 源文档定位 (这份速查从哪儿来)
 
 | 主题 | 文件 |
 |---|---|

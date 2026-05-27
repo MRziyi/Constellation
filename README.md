@@ -38,11 +38,11 @@ Repo layout (post-2026-05-26 reorg): top-level entry points (`README.md`, `HANDO
 - [PROMPT-DESIGN-V2.md](docs/server/PROMPT-DESIGN-V2.md) — two-pass Twin loading (TOC → selective inline).
 - [TOOL-ADAPTERS.md](docs/server/TOOL-ADAPTERS.md) — catalog of 12 live adapters (claude_code dual-track / 4 AppleScript / fs / apple_notes / system_status / apple_shortcuts / twin_query / imessage / safari_state / echo).
 
-### Glass client (Phase 3b — in progress 🔥)
-- [GLASS-CLIENT-DESIGN.md](docs/glass/GLASS-CLIENT-DESIGN.md) v2.1 — bare-metal Android Go app design (supersedes the older CXR-L bridge plan).
-- [GLASS-SDK-REFERENCE.md](docs/glass/GLASS-SDK-REFERENCE.md) — **Rokid Glasses SDK 速查**（audio / keys / display / FGS / 不用的 SDK + 真机验证清单）；写代码时先翻这个，不必每次回 `reference/` 翻原始 doc。
-- [P1.6-COMPOSE-MIGRATION.md](docs/glass/P1.6-COMPOSE-MIGRATION.md) — Compose 迁移 + phoneDebug 眼镜模拟器 7 阶段实施计划 ✅ landed 2026-05-26.
-- [IN-APP-UI-DESIGN.md](docs/glass/IN-APP-UI-DESIGN.md) — **当前设计中** 🎨：应用内 UI (Main / Connect / About / Shortcuts) 4 屏架构 + 分阶段实施提议。
+### Glass client (Phase 3b — first real-device contact made 🔥)
+- [GLASS-CLIENT-DESIGN.md](docs/glass/GLASS-CLIENT-DESIGN.md) v2.1 — bare-metal Android Go HUD app design.
+- [GLASS-SDK-REFERENCE.md](docs/glass/GLASS-SDK-REFERENCE.md) — **Rokid Glasses SDK 速查**（audio / keys / display / FGS / Camera + QR / 不用的 SDK + 真机验证清单）；写代码时先翻这个。
+- [IN-APP-UI-DESIGN.md](docs/glass/IN-APP-UI-DESIGN.md) ⭐ — 当前权威：应用内 UI (Main / Connect / About / Shortcuts) + Camera + QR-pair login。A/B/C/D/Q phases all landed 2026-05-26 EOD.
+- [P1.6-COMPOSE-MIGRATION.md](docs/glass/P1.6-COMPOSE-MIGRATION.md) — Compose 迁移 + phoneDebug simulator 7 阶段实施 (historical, ✅ landed).
 - [MIGRATION-PLAN.md](docs/glass/MIGRATION-PLAN.md) — v2.0 → v2.1 migration steps + verification checklist.
 - [UI-UX.md](docs/glass/UI-UX.md) — HUD design + visual language (v2.1 annotations applied).
 - [reference/INDEX.md](reference/INDEX.md) — raw SDK / 文档源码（Rokid + whisper + Halo Ring）；GLASS-SDK-REFERENCE 是它的"工作答疑层"。
@@ -63,21 +63,22 @@ This repo is design + docs only. Runtime code:
 - `~/Code/Projects/Constellation-Glass/` — eyewear client (branch `pivot/baremetal-v2.1`).
 - Twin seed + install scripts also live under `Constellation-Server/`.
 
-## Status (2026-05-26)
+## Status (2026-05-26 EOD)
 
 | Phase | Status |
 |---|---|
-| Design (SoT through Revision 7 + GLASS-CLIENT-DESIGN v2.1) | ✓ green |
-| Halo Ring plugin protocol | ✓ shipped (now optional companion per v2.1) |
+| Design (SoT through **Revision 9**) | ✓ green |
 | Phase 1 (Mac spine + launchd cycle) | ✓ verified end-to-end |
 | Phase 2 (12 adapters + UC1 wall-clock + confirm-policies enforced) | ✓ verified end-to-end |
-| **R-3 paradigm** (multi-step + always-mic + free-form feedback) | ⚠️ superseded — multi-step moved to V2 agent checkpoints; mic now physical-button-only (C-37) |
 | Phase 5 UC2 reverse-wake | ✓ demoed early end-to-end |
-| **Phase 3b Glass client** | 🟡 in progress — bare-metal pivot (v2.1) on branch `pivot/baremetal-v2.1` in `Constellation-Glass`; both `glass` + `phoneDebug` flavors build; protocol verified via phoneDebug; real-device deploy pending (P1.5) |
 | Cortex Level 2 streaming partials | ✓ shipped |
-| Phases 4 / 6 / 7 / 8 / 9 | ⏸ pending |
+| **Phase 3b Glass client — pivot v2.1 + Compose + in-app UI** | 🟢 mostly landed — Compose HUD (P1.6) + in-app settings (P-app A/B/C) + Shortcuts (P-app.D) + Camera + QR login (P-app.Q) all shipped. Phone-debug E2E verified. **First Rokid Glasses contact made — LoginScreen renders correctly at 480×640 density=240** |
+| Halo Ring plugin protocol | ✓ shipped on ring side; Glass-side actions cursor + trigger receiver fully wired |
+| **Q.4.5 Cortex vision passthrough** | ⏸ open — Glass ships image bytes already; Cortex dispatcher needs to carry image opaquely to vision-capable tool (C-47 design locked) |
+| **Q.8 Phase Q deploy + on-eyewear E2E** | ⏸ open — edge + web code committed but not deployed; QR-pair flow verifiable after deploy |
+| Phases 4 / 6 / 7 / 8 / 9 (original IMPLEMENTATION-PLAN) | ⏸ pending |
 
-Detailed status: [HANDOFF.md §1](HANDOFF.md) + [TODO.md](TODO.md) + [SOURCE-OF-TRUTH.md Revision 7](docs/constitution/SOURCE-OF-TRUTH.md).
+Detailed status: [HANDOFF.md](HANDOFF.md) + [TODO.md](TODO.md) + [SOURCE-OF-TRUTH.md Revision 9](docs/constitution/SOURCE-OF-TRUTH.md).
 
 ## Project paths
 
