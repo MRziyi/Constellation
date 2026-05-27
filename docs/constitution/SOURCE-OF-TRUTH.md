@@ -890,11 +890,17 @@ StateMachine handles them the same way. Only Glass-side host + visual changed.
 - **C-40 (flavor split)**: 强化. With overlay model, `glass` + `phoneDebug` now use the same `SYSTEM_ALERT_WINDOW + ComposeView` pattern; the only difference is the phoneDebug overlay wraps the same `AppStateHud` in a "GLASS SIM" simulator frame. `OverlayHostOwner` lifted from `phoneDebug/` to `main/`.
 - **C-41 (Compose only)**: 不变, reinforced. Single Compose tree across both flavors via shared `CardFrame` + `AppStateHud`.
 - **C-43 (no outdoor HBM fallback / no IMU)**: 不变.
-- **C-44 / C-45 / C-46 / C-47 (Phase Q + vision)**: 不变 protocol-wise. CameraX usage now blocked on real eyewear (see OQ-R10-1 below).
+- **C-44 / C-45 / C-46 / C-47 (Phase Q + vision)**: 不变 protocol-wise. CameraX usage on real eyewear required the C-51 CameraGate workaround.
+
+### 新约束（追加 2026-05-28 EOD）
+
+| 编号 | 约束 | 来源 |
+|---|---|---|
+| **C-51** ✅ landed 2026-05-28 | **CameraGate pattern for camera-using flows**: YodaOS-Sprite enforces AppOps `CAMERA: foreground` UID mode strictly. `foregroundServiceType="camera"` + explicit FGS-type at `startForeground` are NOT enough on this firmware — backgrounded-Service camera open fails with `Camera "0" disabled by policy`. Workaround: route through `CameraGateActivity` (transparent `Theme.Translucent.NoTitleBar`, `singleInstance` in its own task) — lives ~2s while CameraX runs, then `finish()`. Mirrors Rokid's own `com.rokid.os.sprite.assist.media.page.CameraActivity`. Wearer sees a sub-second panel blink. Implementation: `camera/CameraGate.kt` + `ShortcutFireClient` photo path. | User asked to dig in: "我怀疑你相机ID错了". Diagnostic: `dumpsys media.camera` → `Uid mode: CAMERA: foreground`; manually bringing MainActivity foreground → camera open succeeded immediately → confirmed AppOps is the gate (not vendor camera-ID / Sprite reservation / missing permission). |
 
 ### Open Questions
 
-- **OQ-R10-1**: **YodaOS camera gate** — CameraX `bindToLifecycle()` fails with `ERROR_CAMERA_DISABLED` on real Rokid Glasses regardless of CAMERA runtime permission, FOREGROUND_SERVICE_CAMERA declaration, and explicit `ServiceCompat.startForeground(..., FOREGROUND_SERVICE_TYPE_CAMERA)`. Same code works on OnePlus 9. Need to find the vendor-level mechanism (Sprite exclusive reservation? `com.rokid.permission.CAMERA`? non-standard camera ID? top-temple camera button must be system-launched?). Tracked in TODO.
+- ~~**OQ-R10-1**~~ ✅ **resolved 2026-05-28**: Root cause = AppOps `CAMERA: foreground`. Workaround = **C-51**. Vision shortcut E2E verified on real Rokid Glasses (<glass-serial>): app backgrounded → broadcast → eyewear photo → vision_describe → Compose card with prose description ("A rotated view of a desk setup shows a large monitor with a code editor open..."). Constellation-Glass `8a2b989`.
 - **OQ-R10-2**: SYSTEM_ALERT_WINDOW permission UX — currently we don't surface a permission grant flow when first launching on a fresh device. On Rokid Glasses our overlay appeared to work without explicit grant (vendor pre-grants? auto-grant for first-party?). Need to confirm and either document or add a fallback path.
 - **OQ-R10-3**: WakeLock duration ceiling — 5min is safety. If a CARD lives longer than 5min (e.g. user reading a long Cortex agent output), panel auto-locks mid-view. Probably fine — user can dismiss + re-engage; pathological case. Revisit if seen in practice.
 
