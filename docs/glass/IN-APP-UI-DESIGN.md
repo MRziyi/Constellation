@@ -367,9 +367,15 @@ Eight sub-phases shipped after P-app.D.5.a, fulfilling the two carry-forward TOD
 | Q.7 | **Edge** `/api/auth/pair_qr` — auth-gated, derives endpoint from request Host header, returns `{endpoint, cookie_name, cookie_value}`. **Web Console** new `/about` route with `QRCodeSVG` 256×256 (white padding) + endpoint/cookie metadata + security warning. `qrcode.react` npm dep (via pnpm). Build green. | Pending deploy + scan E2E |
 | Q.8 | Deploy edge + web + scan E2E on OnePlus 9 then Rokid Glasses | ⏸ **pending** |
 
-### Q.4.5 — Cortex vision passthrough (open ticket)
+### ✅ Q.4.5 — Cortex vision passthrough — landed 2026-05-26 EOD
 
-Per Zack 2026-05-26 EOD: Glass already ships image bytes with the prompt via `image_b64`. Cortex's router currently only tags the prompt `(photo attached)` — doesn't pass the image to downstream tools. The dispatcher needs to treat the image as **opaque metadata** that travels with the request through every subtask's args; the routing decision uses only the prompt text. A vision-aware tool adapter (e.g. `vision_describe` calling Claude/GPT-4o vision directly) becomes the destination for image-aware prompts. See [TODO.md `Q.4.5`](../../TODO.md).
+Glass already shipped image bytes with the prompt via `image_b64` (Phase Q). Cortex now routes them correctly to a vision-capable tool. Architecture (refined): the dispatcher maintains a small allowlist `_VISION_AWARE_TOOLS = {"vision_describe"}`. The router (purely text-prompt-based decision) selects vision_describe when `(photo attached)` is present AND the prompt is vision-shaped. Only then does dispatcher inject `_image_b64` into the tool's args. All other routings — even photo-bearing — never see the image bytes (default-off guarantee against surprise vision API costs).
+
+E2E verified on OnePlus 9: shortcut fire → CameraCapture 70KB JPEG → POST → classifier simple → router picks vision_describe → OpenAI gpt-5.2 multimodal → real prose description back to the HUD card.
+
+Constellation-Server commits: `83bba42` (image gate) + `1250f74` (vision_describe adapter) + `948bad6` (router + classifier + token kwarg).
+
+Glass-side requires zero changes — the Phase Q image plumbing already does the right thing.
 
 ---
 

@@ -790,7 +790,7 @@ P-app sequence: A (Compose NavHost + Connect screen + EndpointStore + Service ha
 | **C-44** | **Shortcut = 一键 fire-and-forget**：preset prompt + optional photo，**没有 mic 字段**。若一个触发想开 mic，那就不是 shortcut，是普通的 voice invoke。 | "shortcut 就是可能点一下戒指或者按下某个快捷键，它自动填一段 prompt 发过去...我不用说话". |
 | **C-45** | **CameraX 拍照走 downscale-and-recompress**：1024px longest edge + JPEG q=80。Headless（无 preview surface）；Service-mediated（不在 BroadcastReceiver 里跑 — 受 ~10s budget 限制）；FGS type 必须含 `camera`（Android 14+ block 后台 camera open without it）。 | 1.7MB → 70KB observed；user pushed for compression. |
 | **C-46** | **眼镜端登录走 QR pairing，不走密码键入**：Web Console → /about 渲染 `{endpoint, cookie_name, cookie_value}` JSON QR；眼镜 `LoginScreen` SCAN QR 扫一下 → 直接进 Main。第一次登录后 cookie 永久 (per Revision 8 C-41 follow-up — no logout)。 | "眼镜扫QR码吧，QR码内部就是密码的字符串". |
-| **C-47** | **Cortex dispatcher 携带 image 不解释**：当 `user_invoke` 携带 `image_b64`，dispatcher (router/classifier) 仍只读 `text` 做路由决策；image 作为 **opaque metadata** 流过每个 subtask 的 args。需要看图的 tool (vision_describe / OCR / face-rec) 在 args 里拿；不需要的 tool 忽略它。**目前未实施 → Q.4.5 ticket**。 | "由 dispatcher 根据 prompt 来决定这个图像要不要递给下一个工具...Dispatcher 本身应该也没必要知道这个图像". |
+| **C-47** ✅ landed 2026-05-26 EOD | **Cortex dispatcher 携带 image 不解释**：当 `user_invoke` 携带 `image_b64`，classifier/router 只读 `text` 做路由决策。image 流向**仅**由路由决定 — `cortex.server._VISION_AWARE_TOOLS = {"vision_describe"}` 是白名单门；router 路由到名单内的 tool 时 dispatcher 才把 image 注入到 args 里 (key=`_image_b64`)，其他 tool 永远拿不到。**Default-off** 是显式承诺 (无 surprise vision 费用)。Cortex `83bba42` + `1250f74` + `948bad6`；E2E 验证 OnePlus 9 真摄像头照片 → Claude vision → 干净 prose 回到 HUD card。 | "由 dispatcher 根据 prompt 来决定这个图像要不要递给下一个工具...Dispatcher 本身应该也没必要知道这个图像" + "默认绝对是不可能默认调用微认的". |
 
 ### 协议契约修正（影响 INTERFACE-CONTRACTS）
 
@@ -850,7 +850,7 @@ required on the Console / Edge side.
 
 ### 待办（推到下个 phase）
 
-- **Q.4.5 Cortex vision passthrough** (C-47 实施) — dispatcher 通过 image 给 vision tool。新增 `vision_describe` adapter 或类似. 见 [TODO.md `Q.4.5`](../../TODO.md).
+- ~~**Q.4.5 Cortex vision passthrough** (C-47 实施)~~ ✅ landed 2026-05-26 EOD — Cortex `83bba42 + 1250f74 + 948bad6`; vision_describe adapter + classifier prompt + router catalog + E2E verified on OnePlus 9 real camera shot.
 - **Q.8 Phase Q deploy + Rokid Glasses E2E** — deploy edge + web; OnePlus 9 + 真眼镜两端测 QR 流程.
 - **Halo Ring profile push** (P1.7) — still optional; not blocking.
 
