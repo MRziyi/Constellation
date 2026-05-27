@@ -472,14 +472,17 @@ Diagnostics done:
 - Eyewear can resolve `edge.example.com` during the brief connected windows
 - Tailscale package not installed on eyewear: `pm list packages | grep tailscale` returns nothing
 
-**Carry-forward / proposed fix**:
+**Fix applied (Constellation-Glass `850ad81`)** — Tailscale recommendation reverted (the eyewear can't join Zack's Tailscale LAN; public Edge is the only path):
 
-The single highest-value fix for this issue: **install Tailscale on the Rokid Glasses + change endpoint to `wss://<mac-host>:8888/ws/glass`**. Bypasses the WiFi WoW TLS issue entirely (Tailscale uses its own UDP-based DERP relay + keeps a steadier control connection). Once on Tailscale, the eyewear can reach the Mac mini directly without depending on the public Edge.
+1. **WssClient.kt** — `pingInterval(10s)` (was 15s; keeps WiFi radio warmer), `connectTimeout(20s)`, `writeTimeout(15s)`, `retryOnConnectionFailure(true)`, **`connectionPool.evictAll()` at start of every `connect()`** (the key fix — flushes "half-dead" sockets that survive WoW state transitions but fail TLS handshake on reuse). `onFailure` log promoted from warn → info with throwable class + message inline.
+2. **All 5 HTTP clients** (`CortexHealthClient`, `CortexPingClient`, `ShortcutsClient`, `ShortcutFireClient`, `auth/CortexAuth`) — connectTimeout from 3–10s → 15s; ShortcutFireClient readTimeout bumped to 30s for full Cortex+vision turnaround.
 
-Alternative cheaper fix: tune the eyewear's WiFi to disable WoW / power-save, OR use a different WiFi (hotspot from your phone) for testing purposes.
+**Verified post-fix** (2026-05-27, same eyewear):
+- WSS first attempt times out at 20s, second attempt (after evictAll) opens cleanly → `Offline → Idle`
+- Full `battery?` cycle: `Idle → Thinking → Card` with **GlassHudActivity rendering the Compose CardHud** on the real 480×640 panel showing "System status / Battery: 80% (True) / Focus: off / Wi-Fi: None / Frontmost app: Code / Time: 2026-05-27T01:23:59-05:00 (CDT) / double-click to dismiss · auto-close"
+- Shortcuts page fetch on eyewear sometimes fails on first cold connect (15s not always enough under WoW); subsequent fetches within the same session succeed — workaround: navigate-retry. Manual single-retry on SocketTimeoutException would smooth this; tracked in TODO.
 
-**Not verified due to network blocker (carries forward)**:
-- Vision shortcut E2E on the eyewear (`am broadcast shortcut_whats-in-front` → camera → Cortex → vision_describe → card back to eyewear panel)
-- Voice invoke / Listening / mic capture flow on the eyewear
-- Long Card body wrapping at real 320 dp / density 240 (need actual Card frame to land)
-- Full 10-item P1.5 verification checklist needs stable WSS to validate
+**Still not verified** (need a session with stable WSS to drive them):
+- Vision shortcut E2E from eyewear (`am broadcast shortcut_whats-in-front` → eyewear camera → Cortex → vision_describe → card back to panel)
+- Voice invoke / Listening / mic capture flow on eyewear
+- Long Card body wrapping at real 320 dp / density 240 (we have one Card frame's worth of data; needs more samples)
