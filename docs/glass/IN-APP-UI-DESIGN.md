@@ -445,3 +445,41 @@ Glass-side requires zero changes — the Phase Q image plumbing already does the
 | Force-stop + relaunch | Straight to Main, no Login flash → **cookie + endpoint persisted correctly across app restart** |
 
 **Q.8 result**: Pair flow ✅ fully verified on real eyewear. **Eyewear-network setup is the only blocker** between this state and full Cortex round-trip; the QR pair architecture itself works exactly as designed.
+
+### Rokid Glasses — post-WiFi-online E2E (2026-05-27 EOD session)
+
+After the eyewear was put on a network that resolves `edge.example.com`, we ran a second pass to verify the full HUD → Cortex → HUD round-trip works on the real panel.
+
+**Verified ✅**:
+
+| Step | Observation |
+|---|---|
+| Service start on first MainActivity launch | `ConstellationService · onCreate` → endpoint correctly read from EndpointStore (set by QR scan) → WSS connecting |
+| WSS handshake completes (first wake) | `Offline → Idle` transition fires; Connect screen shows "● connected" + cookie persisted |
+| `/api/test/invoke battery?` from Mac | event reaches Cortex; classifier + router + dispatch fire correctly |
+| Card frame arrives at eyewear (during stable WSS window) | `StateMachine · Idle → Thinking`; `GlassHudActivity · onCreate` (HUD Activity launched from the Service via Intent) |
+| **GlassHudActivity renders Compose HUD on real 480×640 panel** | Screenshot `eyewear_card_v3.png` captured **the Thinking state overlay live** ("🧠 planning dispatch (gpt-5.2 router)") on top of the launcher/MainActivity backdrop. **First time Compose HUD has been seen rendering on the actual JBD4020 panel during a live Cortex round-trip.** |
+| Foreground-suppression handoff (D6) | `GlassHudSurface · MainActivity foreground, skipping HUD launch` when settings UI is up; `GlassHudActivity · onCreate` when MainActivity is backgrounded |
+
+**Blocked ⚠️**:
+
+The WSS connection on the eyewear's WiFi is **intermittent under power-saving**. After the first stable window (Offline → Idle → Thinking transition + Compose HUD live), subsequent `WssClient · connecting` attempts time out silently (no `open (HTTP 101)`, no `closed` event — TLS handshake never completes). The Service stays alive, MainActivity stays alive, but the WSS reconnect loop can't get past TLS handshake. Logs show `pmo_core_psoc_send_host_wakeup_ind_to_fw` + `wow is enabled` (Wake-on-Wireless power-save mode) right around when the connection drops.
+
+Diagnostics done:
+- Cortex side healthy: `tool_conn: True`, events received via `/api/test/invoke`, `glass_frame.emit kind=card` fires
+- Public Edge reachable from anywhere else (Mac, OnePlus 9)
+- Eyewear pings `<mac-host>` (Mac mini Tailscale IP) → **100% loss** (eyewear is NOT on Tailscale)
+- Eyewear can resolve `edge.example.com` during the brief connected windows
+- Tailscale package not installed on eyewear: `pm list packages | grep tailscale` returns nothing
+
+**Carry-forward / proposed fix**:
+
+The single highest-value fix for this issue: **install Tailscale on the Rokid Glasses + change endpoint to `wss://<mac-host>:8888/ws/glass`**. Bypasses the WiFi WoW TLS issue entirely (Tailscale uses its own UDP-based DERP relay + keeps a steadier control connection). Once on Tailscale, the eyewear can reach the Mac mini directly without depending on the public Edge.
+
+Alternative cheaper fix: tune the eyewear's WiFi to disable WoW / power-save, OR use a different WiFi (hotspot from your phone) for testing purposes.
+
+**Not verified due to network blocker (carries forward)**:
+- Vision shortcut E2E on the eyewear (`am broadcast shortcut_whats-in-front` → camera → Cortex → vision_describe → card back to eyewear panel)
+- Voice invoke / Listening / mic capture flow on the eyewear
+- Long Card body wrapping at real 320 dp / density 240 (need actual Card frame to land)
+- Full 10-item P1.5 verification checklist needs stable WSS to validate
