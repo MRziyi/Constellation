@@ -36,12 +36,13 @@ Repo layout (post-2026-05-26 reorg): top-level entry points (`README.md`, `HANDO
 - [INTERFACE-CONTRACTS.md](docs/server/INTERFACE-CONTRACTS.md) — wire schemas (Glass↔Cortex, Cortex↔Tool, Twin, MCP).
 - [CORTEX-ROUTER-PROMPT.md](docs/server/CORTEX-ROUTER-PROMPT.md) — Router system prompt (single-round dispatch; multi-step lives in V2 agent path).
 - [PROMPT-DESIGN-V2.md](docs/server/PROMPT-DESIGN-V2.md) — two-pass Twin loading (TOC → selective inline).
-- [TOOL-ADAPTERS.md](docs/server/TOOL-ADAPTERS.md) — catalog of 12 live adapters (claude_code dual-track / 4 AppleScript / fs / apple_notes / system_status / apple_shortcuts / twin_query / imessage / safari_state / echo).
+- [TOOL-ADAPTERS.md](docs/server/TOOL-ADAPTERS.md) — catalog of 13 live adapters (claude_code dual-track / 4 AppleScript / fs / apple_notes / system_status / apple_shortcuts / twin_query / imessage / safari_state / echo / **vision_describe**).
+- [Q4.5-VISION-PASSTHROUGH.md](docs/server/Q4.5-VISION-PASSTHROUGH.md) — design + 4-phase implementation log for the vision passthrough (`_VISION_AWARE_TOOLS` allowlist + `vision_describe` OpenAI multimodal adapter). ✅ landed 2026-05-26.
 
-### Glass client (Phase 3b — first real-device contact made 🔥)
+### Glass client (Phase 3b — first Card on real eyewear panel 🔥)
 - [GLASS-CLIENT-DESIGN.md](docs/glass/GLASS-CLIENT-DESIGN.md) v2.1 — bare-metal Android Go HUD app design.
 - [GLASS-SDK-REFERENCE.md](docs/glass/GLASS-SDK-REFERENCE.md) — **Rokid Glasses SDK 速查**（audio / keys / display / FGS / Camera + QR / 不用的 SDK + 真机验证清单）；写代码时先翻这个。
-- [IN-APP-UI-DESIGN.md](docs/glass/IN-APP-UI-DESIGN.md) ⭐ — 当前权威：应用内 UI (Main / Connect / About / Shortcuts) + Camera + QR-pair login。A/B/C/D/Q phases all landed 2026-05-26 EOD.
+- [IN-APP-UI-DESIGN.md](docs/glass/IN-APP-UI-DESIGN.md) ⭐ — 当前权威：应用内 UI (Main / Connect / About / Shortcuts) + Camera + QR-pair login。A/B/C/D/Q phases landed 2026-05-26; Rokid Glasses QR pair + first Card verified 2026-05-27.
 - [P1.6-COMPOSE-MIGRATION.md](docs/glass/P1.6-COMPOSE-MIGRATION.md) — Compose 迁移 + phoneDebug simulator 7 阶段实施 (historical, ✅ landed).
 - [MIGRATION-PLAN.md](docs/glass/MIGRATION-PLAN.md) — v2.0 → v2.1 migration steps + verification checklist.
 - [UI-UX.md](docs/glass/UI-UX.md) — HUD design + visual language (v2.1 annotations applied).
@@ -63,7 +64,7 @@ This repo is design + docs only. Runtime code:
 - `~/Code/Projects/Constellation-Glass/` — eyewear client (branch `pivot/baremetal-v2.1`).
 - Twin seed + install scripts also live under `Constellation-Server/`.
 
-## Status (2026-05-26 EOD)
+## Status (2026-05-27 EOD)
 
 | Phase | Status |
 |---|---|
@@ -72,10 +73,10 @@ This repo is design + docs only. Runtime code:
 | Phase 2 (12 adapters + UC1 wall-clock + confirm-policies enforced) | ✓ verified end-to-end |
 | Phase 5 UC2 reverse-wake | ✓ demoed early end-to-end |
 | Cortex Level 2 streaming partials | ✓ shipped |
-| **Phase 3b Glass client — pivot v2.1 + Compose + in-app UI** | 🟢 mostly landed — Compose HUD (P1.6) + in-app settings (P-app A/B/C) + Shortcuts (P-app.D) + Camera + QR login (P-app.Q) all shipped. Phone-debug E2E verified. **First Rokid Glasses contact made — LoginScreen renders correctly at 480×640 density=240** |
+| **Phase 3b Glass client — pivot v2.1 + Compose + in-app UI + QR pair + first Card on real eyewear** | 🟢 most-of-the-way — Compose HUD (P1.6) + in-app settings (P-app A/B/C) + Shortcuts (P-app.D) + Camera + QR login (P-app.Q) + WSS/HTTP timeout fix for Rokid Glasses WiFi all shipped. **OnePlus 9 fully E2E; Rokid Glasses (`<glass-serial>`) QR-paired + first Compose CARD rendered live on the 480×640 JBD4020 panel.** Remaining: Q.4.5b HTTP retry, full vision E2E on eyewear, voice+vision in Listening state. |
 | Halo Ring plugin protocol | ✓ shipped on ring side; Glass-side actions cursor + trigger receiver fully wired |
-| **Q.4.5 Cortex vision passthrough** | ⏸ open — Glass ships image bytes already; Cortex dispatcher needs to carry image opaquely to vision-capable tool (C-47 design locked) |
-| **Q.8 Phase Q deploy + on-eyewear E2E** | ⏸ open — edge + web code committed but not deployed; QR-pair flow verifiable after deploy |
+| **Q.4.5 Cortex vision passthrough (C-47)** | ✅ landed 2026-05-26 EOD — `vision_describe` adapter + `_VISION_AWARE_TOOLS` allowlist gate + classifier hint; E2E verified on OnePlus 9 with real-camera shot. |
+| **Q.8 Phase Q deploy + on-eyewear QR pair** | ✅ landed 2026-05-26 EOD — Edge `/api/auth/pair_qr` + Web `/about` deployed; both devices paired without password. |
 | Phases 4 / 6 / 7 / 8 / 9 (original IMPLEMENTATION-PLAN) | ⏸ pending |
 
 Detailed status: [HANDOFF.md](HANDOFF.md) + [TODO.md](TODO.md) + [SOURCE-OF-TRUTH.md Revision 9](docs/constitution/SOURCE-OF-TRUTH.md).
