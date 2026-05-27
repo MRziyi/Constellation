@@ -1044,3 +1044,77 @@ P1.5a 同次跑出还发现：StateMachine `dispatch()` 把 Cortex 同时发的 
 - 📌 OQ-R12-1（先前列在 R-11）— 关于 listening 中 camera capture 三选一方案 (a/b/c)，现在视角变了：戒指广播作 fresh voice 入口后，"voice + camera" 仍然是开放设计问题，但**入口已不是侧键**
 
 ---
+
+## Revision 13 — 2026-05-29 (EOD): 语音 + 视觉 = server-pull on demand (C-55)
+
+**Status**: design locked. 实现待落地。
+
+### 触发因素
+
+Zack 复盘 P1.6+ 阶段时定下新方针：**"内存 + 能耗是下一阶段重点"**。这条压倒"功能完整"——意味着所有后续设计要先过"能效 ROI"这一关。
+
+在此约束下，重新审视 OQ-R11-1 / OQ-R12-1 "voice + camera" 三条候选路径：
+
+| 路径 | 非视觉语音的能耗代价 | 视觉语音的延迟 | 能效契合度 |
+|---|---|---|---|
+| (a) Glass 端永远预拍照 | 每次开机 ~500ms + ~50mAh + 70KB 上传，**即使你只问时间** | 最快 (拍照与 STT 并行) | ❌ 浪费 |
+| (b) Glass 端 STT 后判断 | 同 (a) | 同 (a) | 实际做不到 — Glass 端没 STT, whisper 在 Cortex; (b) 退化为 (c) |
+| (c) **Server-pull on demand** | 0 | +~1.5s round-trip | ✅ |
+
+### 新约束
+
+| 编号 | 约束 | 用户原话依据 |
+|---|---|---|
+| **C-55** | **语音 invoke 永不预拍照 — 视觉是 server-pull on demand**. Cortex router 决定走 vision-aware tool (`_VISION_AWARE_TOOLS`) 但 `event.payload.image` 为空时, 通过新 frame `request_image` 让 glass 客户端按需拍照, 用 `image_attached` event 回传; Cortex 用 `asyncio.Future + 10s timeout` 等待, 然后正常分发 tool. 不引入新的 LLM 调用 — router 现有的"是否视觉"决策直接复用. | "内存+能耗是下阶段重点" + 三路径量化对比 2026-05-29. |
+
+### 协议扩展（INTERFACE-CONTRACTS）
+
+新增两条 frame:
+
+**Cortex → Glass**:
+```
+{ "kind": "request_image",
+  "req_id": "<unique>",
+  "parent_event_id": "<source user_invoke event id>",
+  "hint": "<optional, e.g. 'scene in front'>"   // 当前不用，预留
+}
+```
+
+**Glass → Cortex** (作为新 event kind):
+```
+{ "kind": "image_attached",
+  "ts": "<ISO>",
+  "payload": {
+    "req_id": "<echo back>",
+    "image": "<base64-encoded JPEG bytes>"
+  }
+}
+```
+
+### 实施策略（落地序列）
+
+1. **Cortex** — `_dispatch_complex_agent` 在 image 注入循环 (server.py:1964-1976) 前加一步: 检测 `if any(st["tool"] in _VISION_AWARE_TOOLS for st in plan["subtasks"]) and not image_b64 and self._glass_conn and "card" in self._glass_accept` → emit `request_image` → await Future → 拿到 image_b64 后照常注入. 超时 10s 后 fallback 到 image=None (`vision_describe` 会返回"无图像").
+2. **Cortex** — `_process_event` 增加 `image_attached` 分支, 找到 pending future 并 set_result.
+3. **Glass** — `Frames.kt` 增 `CortexCommand.RequestImage` + `GlassEvent.ImageAttached`.
+4. **Glass** — `StateMachine.dispatch` 增 `"request_image"` case, 调 `CameraGate.captureViaGate(ctx)` (跟 ShortcutFireClient 同路径), 把 b64 通过 `wss.sendEvent(ImageAttached(req_id, b64))` 回传.
+5. **Glass** — HUD 期间显示一个轻量"📷 capturing..." Thinking state, 拍完自动退出.
+
+### Diff to existing constraints
+
+- **C-37 能效第一** — 强化. C-55 是 C-37 在视觉路径的具体实施.
+- **C-44 Shortcut = fire-and-forget no mic** — 未变. Shortcut 路径仍然在 client 端拍照 (因为 shortcut 是"显式视觉意图"，没有 STT 后再判断的环节).
+- **C-47 vision passthrough opt-in** — 未变. `_VISION_AWARE_TOOLS` allowlist 维持. C-55 仅决定 image **何时**进入 args, 不改 "**哪些 tool** 看得到".
+- **C-49 wake-on-while-visible** — 拍照期间 HUD 可能短暂亮 (CameraGate 已是 transparent Activity), wake lock 由 capture 触发的 state 转入处理.
+- **C-52 unified HUD control model** — 未变.
+
+### Open Questions
+
+- **OQ-R13-1**: 10s timeout 是否够? 真机 CameraGate.captureViaGate 端到端实测 ~1.5s, 留 6x 头寸应该够; 若网络拥塞或眼镜 thermal-throttle 也可考虑动态.
+- **OQ-R13-2**: phoneDebug flavor 没有 CameraGate (它的相机用法不同). phoneDebug 在收到 `request_image` 时应该 (a) 试着用 Camera2 抓前置, (b) 忽略 + 返回空 image_attached 让 Cortex fallback. 选 (b) — 简单, 反正 phoneDebug 是 protocol 验证不是 production. 真机由 glass flavor 负责.
+- **OQ-R13-3**: 多个并发 request_image (e.g. 用户连续问两个视觉问题) — Future 注册表用 req_id 隔离, 但 Glass 端 CameraGate 是 singleInstance, 第二次 capture 会跟第一次冲突. 当前不处理 (用户连续视觉问题罕见), 留 OQ.
+
+### 实施目标
+
+OnePlus 9 (`854afb6b`) phoneDebug 上验证协议层 (request_image 收到, image_attached 即使空也回传); Rokid Glasses (`<glass-serial>`) glass 上验证完整闭环: 单击侧键 → Listening → 说"那是什么?" → Cortex router → request_image → CameraGate 拍照 → Cortex 拿到 image → vision_describe → CARD prose 描述.
+
+---
