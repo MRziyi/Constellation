@@ -21,11 +21,12 @@
 >
 > Sources consulted for this revision (all in `reference/` now):
 > - `reference/rokid-glass/bare-metal-docs/` — 裸机开发 official docs (captured 2026-05-26 via chrome-mcp from `custom.rokid.com` SPA)
-> - `reference/rokid-glass/glass2-docs/` — Rokid Glasses 2 official GitHub docs
-> - `reference/rokid-glass/cxrl-sample-android/` — CXR-L v1.0.1 sample (for cross-reference)
+> - `reference/rokid-glass/cxrl-sample-android/` — CXR-L v1.0.1 sample (for cross-reference; phone-side SDK)
 > - `reference/rokid-glass/rokid-docs-buildwithfenna/yodaos/docs/` — reverse-engineered YodaOS hardware docs (audio, display, thermal, speech)
 > - `reference/whisper/whisper.cpp/` — whisper.cpp source (for STT)
 > - `reference/halo-ring/Halo-Ring/Doc/` — Halo Ring protocol spec
+>
+> **Note**: `glass2-docs/` (Rokid **Glass 2**, the older product — Amlogic, 1280×720 landscape) was previously cited here but removed 2026-05-27. That product is not user's current Rokid Glasses (480×640 portrait, JBD4020, YodaOS-Sprite). See `reference/INDEX.md` for the model-applicability anchor.
 
 ---
 

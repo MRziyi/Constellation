@@ -332,29 +332,26 @@ Rokid Glasses  ──HTTPS/WSS──►  Linux Edge (edge.example.com, DigitalOc
 | **AccessibilityInstruct** (百灵鸟) | ❌ 拒 | 同上链路 |
 | **CXR-L AAR** (`com.rokid.cxr:client-l:1.0.1`) | ❌ 拒 | 是**手机侧** bridge SDK，不在眼镜上跑 — 见 `bare-metal-docs/04-cxrl-vs-baremetal-decisive.md` |
 | **AuthorizationHelper / Rokid token** | ❌ 拒 | 裸机不需要 Sprite IPC 鉴权 |
-| **Face SDK** (离线人脸识别) | ⏸ 推迟 | UC3 face recognition 在 Phase 6 — 那时再评估 |
-| **LPR SDK** (车牌识别) | ❌ | 与用例无关 |
-| **Scene Recognize SDK** | ⏸ 待议 | 可能给 Insight Engine 加输入 — 见 §8 |
-| **IMU SDK** | 💡 待议 | 可能给"抬头唤醒"用 — 见 §8 |
-| **UI SDK** | ❌ 拒 | Compose 已覆盖；UI SDK 给老 View 应用脚手架 |
 | **拍照按钮** (上方 CLICK) | ❌ 拿不到 | 系统占用 |
 | **录像按钮** (上方 LONG_PRESS) | ❌ 拿不到 | 系统占用 |
 
-→ `reference/rokid-glass/glass2-docs/zh/2-sdk/` (各 SDK 官方说明)
 → `reference/rokid-glass/bare-metal-docs/04-cxrl-vs-baremetal-decisive.md`
+
+**注意**：以前在这个表里列过 Face SDK / LPR SDK / Scene Recognize SDK / IMU SDK / UI SDK / Voice SDK (InstructSdk)——那些都来自 **Rokid Glass 2** (`glass2-docs/`)，**不是用户这款 Rokid Glasses**。Glass 2 的 SDK 套件在当前 Rokid Glasses + YodaOS-Sprite 上不可用。已从本文档剔除以避免误导。当前 Rokid Glasses 上能用的"非裸机"能力主要由 CXR-L (phone-side SDK) 提供，详见 §8。
 
 ---
 
-## 8. 可能值得重评估的 SDK 能力 (设计候选)
+## 8. CXR-L 作为可能的 "phone-bridge" 备选 (设计候选)
 
-> 这些目前**不在** v2.1 设计内，但 SDK 能力上是有的。等真机 P1.5 拿到第一手数据后可以重谈：
+> 当前 v2.1 选择**裸机**（眼镜端独立 app + 自己走 WiFi 上 Edge），但 CXR-L 是
+> Rokid 官方为**当前 Rokid Glasses**提供的另一条架构：手机端 app 通过 Rokid AI APP
+> 桥接到眼镜。如果遇到**眼镜 WiFi 能耗 / 联网困难**等场景，CXR-L 是合理的重评估点。
 
-| 能力 | 来源 | 潜在用途 | 风险 |
+| 能力 | 来源 | 潜在用途 | 代价 / 风险 |
 |---|---|---|---|
-| **IMU 头部姿态** | `glass2-docs/2-sdk/8-imu-sdk` | "抬头看天花板 → 唤醒 HUD" 替代单击物理键 | 多一个能耗源；漂移；用户头动作分类需调 |
-| **Scene Recognize** | `glass2-docs/2-sdk/9-scenerecognize-sdk` | Insight Engine 上下文增强 | 隐私 (拍照分析)；能耗未知 |
-| **相机 (camera2 API)** | `yodaos/docs/apps/camera2.md` | UC3 face recognition (Phase 6) | 计划中，未提前 |
-| **音频回声参考 (ch 6/7)** | `bare-metal-docs/02-audio-recording.md` | 进一步降噪 (我们目前只用 ch0) | 多数据量；DSP 已经做了大部分 |
+| **手机做主，眼镜做显示+采集** | `cxrl-sample-android` + `bare-metal-docs/04` | 眼镜 WiFi 可永久关；功耗换到手机；走手机 4G/WiFi | 需要重写：Constellation 拆分为"手机 app + 眼镜瘦端"。或者维持"眼镜 app"但走 BT-PAN（更轻） |
+| **眼镜端 Camera2 API** | `yodaos/docs/apps/camera2.md` | UC3 face recognition (Phase 6) — 直接裸机调标准 API | 计划中，未提前 |
+| **音频回声参考 (ch 6/7)** | `bare-metal-docs/02-audio-recording.md` | 进一步降噪（我们目前只用 ch0） | 多数据量；DSP 已做大部分；除非真机噪声大不需要 |
 
 ---
 
@@ -537,7 +534,8 @@ directly from a Service or non-Activity context.
 | 音频 8 通道 + ChannelMask sample | `reference/rokid-glass/bare-metal-docs/02-audio-recording.md` |
 | Rokid SDK 总览页 | `reference/rokid-glass/bare-metal-docs/03-developerdoc-sdk-page.md` |
 | **为什么不用 CXR-L** | `reference/rokid-glass/bare-metal-docs/04-cxrl-vs-baremetal-decisive.md` |
-| Rokid Glasses 2 官方 SDK 文档 | `reference/rokid-glass/glass2-docs/zh/` |
+| **CXR-L Android sample (v1.0.1 真实 API 参考)** | `reference/rokid-glass/cxrl-sample-android/` |
+| **CXR-L iOS sample** | `reference/rokid-glass/cxrl-sample-ios/` |
 | YodaOS 硬件音频 (mic 阵列 / DSP) | `reference/rokid-glass/rokid-docs-buildwithfenna/yodaos/docs/hardware/audio.md` |
 | YodaOS 屏幕 + 热级表 | `.../yodaos/docs/hardware/display.md` |
 | YodaOS DSP + iFlytek + KWS | `.../yodaos/docs/platform/speech-sdk.md` |
