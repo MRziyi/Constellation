@@ -66,6 +66,15 @@
 | `progress_feedback` | `{ in_reply_to: "cmd_...", text: "...", source: "voice"\|"text" }` | Free-form 中途插话。Glass 收到 `progress` command 期间麦克风/输入仍然开着；用户随口说的内容打包成 `progress_feedback`. Cortex 端的 filler/substantive classifier 把口胡 ("OK", "嗯", ".") 安静丢掉，把实质内容 ("PhotoRing 不是 PhotoRig") inject 进 CC 的 tmux session 作为 user message. **不阻塞 agent**；只是补 context. |
 | `agent_decision` | `{ in_reply_to: "cmd_...", decision: "continue"\|"adjust"\|"cancel", text?: "..." }` | 对 phase-checkpoint ⏸ blocking card 的响应（见 §2.6）. `continue` → Cortex 直接 dispatch `claude_code.agent_continue` 把 "continue" 喂给 tmux. `adjust` → 必带 `text`（用户的修改要求）作为 user message 喂给 tmux. `cancel` → Cortex 调 `agent_kill` 终止 session 并写 partial receipt. |
 
+**Phase 3b — Glass client additions** (audio path + R-13 vision pull):
+
+| kind | payload | 说明 |
+|---|---|---|
+| `audio_chunk` | `{ stream_id, seq, b64_pcm, sample_rate=16000, channels=1 }` | ~250 ms b64-encoded 16kHz mono PCM frame. Glass deinterleaves Rokid's 8-channel raw to ch0 and ships sequentially. |
+| `audio_end` | `{ stream_id, duration_ms, lang_hint? }` | End-of-utterance marker. Cortex assembles the buffered chunks and runs whisper-cli server-side. |
+| `decision_voice` | `{ cmd_id, command: "approve"\|"modify"\|"kill"\|... }` | Voice-triggered card decision. Mostly historical (InstructSdk path); current path is physical-key → `user_decision`. |
+| **`image_attached`** | `{ req_id, image }` | **R-13 / C-55, 2026-05-29**: Glass response to a `request_image` command frame. `image` is base64-encoded JPEG bytes (captured via CameraGate, no client-side downscale). `image=""` is a legitimate "tried but failed" signal — Cortex sees it and short-circuits its 10s wait to immediate text-only fallback. Cortex-side handler: `_handle_image_attached` resolves `_pending_image_requests[req_id]` Future; the original `user_invoke` event's payload is then mutated to include the image so the rest of the classify→route→dispatch pipeline sees `has_image=True`. |
+
 > **Mid-flight 注意**: `progress_feedback` 是 best-effort——tmux send-keys 在 CC `stop_reason=tool_use` 期间不一定 surface 成 user message。要可靠的中途介入，让 CC 自己在 phase 边界停下来（C-27 / §2.6 phase_checkpoint）。
 
 ### 1.4 设计说明
@@ -193,6 +202,18 @@ step-level receipts `[step N]` for multi-step. Final receipt at last step.
 |---|---|---|
 | `progress` | `{ card_id, icon, label, kind: "tool"\|"read"\|"write"\|"thinking"\|"plan"\|"error"\|"heartbeat"\|"feedback_noted"\|... }` | **非阻塞 ticker frame** — agent 跑动期间每 2-3 秒一帧。HUD 渲染为 colored row（emoji + ≤80 字符 label）；不需要用户响应；累积成进度时间线。`thinking` 包含心跳（"💭 still thinking… (Ns quiet)"）当 jsonl 沉默 ≥8s. **Glass 此时麦克风/输入仍然开着** — 任意 utterance 走 `progress_feedback`. |
 | `preview_action` (variant: `phase_checkpoint`) | `{ card_id, kind: "phase_checkpoint", summary, next, actions?: [...], icon: "⏸" }` | **阻塞 ⏸ checkpoint card** — CC emit `{phase_done:true, summary, next, ...}` + end_turn 时 Cortex 弹此卡. 必带 `summary` (本 phase 干了什么) + `next` (下 phase 要干什么). 可选 `actions[]` if 当前 phase 也产出了可 SEND 的动作. Options: `[Continue, Adjust, Cancel]`. **用户 `Adjust` 是 free-form 输入**（mic / textbox），走 `agent_decision { decision: "adjust", text }`. |
+
+**R-13 / C-55 additions (2026-05-29) — server-pull-on-demand vision**:
+
+| kind | payload | 说明 |
+|---|---|---|
+| `request_image` | `{ req_id, parent_event_id, hint?: string }` | **Cortex asks glass to capture a scene photo** because the router needs an image but the event arrived without one. Sent in two cases: (1) upfront from `_handle_user_invoke` when the user's text matches `_VISUAL_INTENT_PATTERNS` (regex on EN+ZH visual cues) and `event.payload.image is None`; (2) inside the simple-path dispatcher when `plan["subtasks"]` contains a `_VISION_AWARE_TOOLS` member but no image is attached. Glass-side handler: `StateMachine.dispatch` "request_image" case → `CameraGate.captureViaGate(ctx)` (same path as photo shortcuts) → `wss.sendEvent(ImageAttached(req_id, b64))`. Cortex waits up to 10s via `_pending_image_requests[req_id]` Future; on timeout falls back to text-only dispatch (`vision_describe` returns "no image to look at"). One round-trip per turn regardless of how many vision-aware subtasks the plan has. **Capability**: Glass must declare `request_image` in its `?accept=` handshake or Cortex's `_emit_glass_frame` gate silently drops the frame. |
+
+And the corresponding Glass → Cortex event (covered in §1.x but listed here for protocol symmetry):
+
+| event kind | payload | 说明 |
+|---|---|---|
+| `image_attached` | `{ req_id, image }` | Glass response to `request_image`. `image` is base64-encoded JPEG bytes (Glass's CameraGate captures at default resolution, no client-side downscale because vision_describe handles its own re-encoding). `image=""` is a legitimate "tried but failed" signal (camera blocked / OOM / AppOps denied) — Cortex sees it and short-circuits its 10s timeout to immediate fallback rather than letting the user hang. |
 
 ### 2.4 关键设计
 
