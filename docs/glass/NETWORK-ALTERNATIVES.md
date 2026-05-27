@@ -1,8 +1,9 @@
 # Constellation-Glass — 网络架构备选调研
 
 **Created**: 2026-05-27
+**Updated**: 2026-05-27 (二轮实测后改写 — BT-PAN 实际**可用**，把 iPhone 切到 LTE 即可)
 **Trigger**: 用户反馈 "WiFi 一直开太浪费电；眼镜重启后还要手动 `svc wifi enable`，能不能跟手机共享网络？"
-**Status**: 调研 + 一轮实测；当前结论 = **维持 WiFi**，无可行的省电替代方案（在 iPhone + YodaOS 组合下）
+**Status**: ✅ **BT-PAN 可用**（前提：iPhone 在 LTE，不是 5G）。完整端到端 WSS → Cortex Card 已验证。WiFi 可常关。
 
 ---
 
@@ -18,72 +19,89 @@
 
 ---
 
-## 2. 方案 A — BT-PAN tethering：**已实测，iPhone+YodaOS 不通**
+## 2. 方案 A — BT-PAN tethering：✅ **可用**（iPhone 必须在 LTE）
 
-### 2.1 测试设置（2026-05-27）
+### 2.1 测试设置（2026-05-27, 二轮）
 
 - 眼镜：Rokid Glasses `<glass-serial>`, YodaOS-Sprite (Android 12 Go base)
 - 手机：iPhone 17 Pro (`68:EF:DC:7C:CA:37` BR/EDR, `63:5C:3A:17:F3:0C` LE)，预先与眼镜配对
 - iPhone 设置：个人热点 → "允许其他人加入" = 开
+- iPhone 设置：**蜂窝网络 → 蜂窝数据选项 → 语音与数据 = LTE/4G**（**关键**：5G 模式下 BT hotspot 只发 IPv6）
 - 眼镜设置：蓝牙 → iPhone 17 Pro → Device details → **Internet access** = 开
 
 ### 2.2 结果
 
-✅ **BT-PAN 链路建起来了**：
+#### 一轮（iPhone 在 **5G**）：失败
+
+bt-pan 接口起来，IPv6 SLAAC 通了，**但 IPv4 没拿到 + ConnectivityService 没注册 NetworkAgent + 默认路由空**。logcat：
 
 ```
-05-27 15:14:25.439 BluetoothPan: setConnectionPolicy(68:EF:DC:7C:CA:37, 100)
-05-27 15:14:25.628 PanService: handlePanDeviceStateChange State:1→2
-                              LOCAL_PANU_ROLE:REMOTE_NAP_ROLE
-05-27 15:14:25.655 ConnectivityService: Got NetworkProvider Messenger for Bluetooth Tethering
-
-# eyewear:
-18: bt-pan: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 ... state UNKNOWN
-    inet6 2607:fb91:22c6:5f85:ae86:d1ff:fe59:3223/64 (SLAAC global)
-    inet6 fe80::ae86:d1ff:fe59:3223/64 (link-local)
-
-# iPhone advertised as IPv6 router:
-fe80::68ef:dcff:fe88:2064 dev bt-pan ... router STALE
-2607:fb91:22c6:5f85:d0cb:4d9b:3b95:f73 dev bt-pan ... router
-```
-
-❌ **但 ConnectivityService 没把 bt-pan 提升为可用 NetworkAgent**：
-
-```
+05-27 15:14:25.628 PanService: handlePanDeviceStateChange State:1→2 LOCAL_PANU_ROLE:REMOTE_NAP_ROLE
 # only one NetworkAgent registered:
-NetworkAgentInfo{network{100}  ni{WIFI CONNECTED}
-  Specifier: SSID="Linksys_14590_5G" ...
+NetworkAgentInfo{network{100}  ni{WIFI CONNECTED}  ...}
 ```
 
-❌ **没有 IPv4**（iOS BT 热点不发 DHCPv4）
-❌ **IPv6 默认路由没装上**（Android 拒绝在 unregistered 接口上装 RA default route）
-❌ `ping6 2001:4860:4860::8888` → "Network is unreachable"
+#### 二轮（iPhone 切到 **LTE** + 眼镜端 toggle Internet access off+on 重协商）：✅ 通
 
-### 2.3 根因分析
+bt-pan 接口拿到 IPv4 + 完整 NetworkAgent 注册 + 优先级高于 WiFi：
 
-**两个互相加重的问题**：
+```
+19: bt-pan: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500
+    inet 172.20.10.10/28 brd 172.20.10.15 scope global bt-pan
+    inet6 2607:fb91:22c6:5f85:5e49:29fe:b96e:1c2f/64 scope global
 
-1. **iOS Personal Hotspot over Bluetooth 只发 IPv6 RA，不跑 DHCPv4 server**
-   - Apple 的 BT 热点是 PAN-NAP role，但没启用 IPv4 DHCP daemon
-   - 唯一的网络配置渠道是 IPv6 RA + SLAAC
-   - **iPhone 端确认**：眼镜连上 BT-PAN 后，iOS 的 Settings → 蓝牙 → 眼镜 → "Bluetooth PAN-NAP" 详情页显示 **IPv4 Address / Subnet Mask / Router 三个字段都是空白**，Configure IP 设为 Automatic。意味着 iPhone 自己都没在这条链路上配 IPv4 — 它把这个页面留给用户**手动**填 IP/Subnet/Router/DNS 才会启用 v4。等于 Apple 出厂就关了这条 BT 上的 v4 路径。
+NetworkAgentInfo{network{101}  ni{Bluetooth Tethering CONNECTED}
+  ...VALIDATED  Score(69)
+  InterfaceName: bt-pan
+  LinkAddresses: [172.20.10.10/28, IPv6×2]
+  DnsAddresses: [/172.20.10.1, fe80::68ef:dcff:fe88:2064%bt-pan]
+  Routes:
+    0.0.0.0/0 -> 172.20.10.1 bt-pan   ← IPv4 default
+    ::/0 -> fe80::68ef:dcff:fe88:2064 bt-pan
+  Transports: BLUETOOTH
+  Capabilities: INTERNET&NOT_RESTRICTED&TRUSTED&VALIDATED
+  LinkUpBandwidth>=24000Kbps  LinkDnBandwidth>=24000Kbps
 
-2. **YodaOS 的 BluetoothTethering NetworkAgent 没生效**
-   - AOSP 标准实现下，PAN PANU 连接成功应该触发 BluetoothTethering 的 NetworkAgent 注册到 ConnectivityService
-   - 但我们这里只看到 `Got NetworkProvider Messenger for Bluetooth Tethering`（provider 创建），后续没有 NetworkAgent register
-   - 怀疑 Rokid 的 YodaOS-Sprite 在裁剪 system 服务时把 BluetoothTethering 完整链路砍了一半
+# BT-PAN score 69 > WiFi score 60 → default network = BT
+$ ip route get 8.8.8.8
+8.8.8.8 via 172.20.10.1 dev bt-pan ...
+```
 
-**互相加重**：即使我们手动给 bt-pan 装路由（需要 root，眼镜没 `su`），应用层 OkHttp/curl 也走不通，因为 socket 选路由会先问 ConnectivityService，而它根本不知道 bt-pan 是个网络。
+E2E（WiFi 关掉，只 BT 路径）：
+- `ping edge.example.com` → 3/3，164-275ms
+- `curl https://edge.example.com/api/health` → `{"status":"ok",...}` 200 OK
+- POST `/api/test/invoke {"text":"battery?"}` → Cortex 处理 → WSS hud_state → card → CardHud 在眼镜上渲染 → 5.35s auto-close
+- 总 round-trip wall time: **~10s**（与 WiFi 模式相同量级）
 
-### 2.4 不通的退路
+### 2.3 根因 + 修复方法
 
-- **手动加路由**：需要 root；眼镜没暴露 root shell
-- **绕过 ConnectivityService 直接 bind socket 到 bt-pan**：需要应用持 `INTERNET` + `CHANGE_NETWORK_STATE` 权限 + 改 OkHttp 配置 bind 到 specific interface；可能行得通，但很 hacky 且要单独 IPv6-only stack
-- **换 Android 手机做 BT-PAN host**：Android 手机的 BT 热点跑标准 DHCPv4，可能能让 YodaOS 的 BluetoothTethering NetworkAgent 真正注册。**未实测**
+#### 一轮失败的根因
 
-### 2.5 结论
+**iOS 17+ 的已知 bug**：iPhone 在 5G 网络下，Personal Hotspot 的 BT-PAN-NAP 不发 IPv4 DHCP/没配 IPv4 router 地址 —— 只发 IPv6 RA。
 
-iPhone + YodaOS BT-PAN 这条组合 **死路一条**。若以后用 Android 手机做 hotspot，值得再试一次（DHCPv4 路径可能能激活 NetworkAgent）。
+**iPhone 端佐证**：连上 BT-PAN 后，iPhone 的 Settings → 蓝牙 → 眼镜 → "Bluetooth PAN-NAP" 详情页显示 **IPv4 Address / Subnet Mask / Router 三个字段都是空白**（Configure IP: Automatic 但没值）。说明 iPhone 自己都没在这条链路配 IPv4。
+
+**Android 端连锁反应**：因为没有 IPv4 lease，YodaOS 的 `BluetoothTethering` NetworkAgent 卡在 "Got NetworkProvider Messenger" 之后不往下注册 NetworkAgent —— 所以 ConnectivityService 不知道这是张可用网络，应用层走不通。
+
+Apple Community + Google Issue Tracker 多份独立报告确认这是 iOS 17.2+ 行为变化，仍在 iOS 18/19 (2026) 未修复。
+
+#### 修复方法（**实测有效**）
+
+**iPhone 切到 LTE/4G**（设置 → 蜂窝网络 → 蜂窝数据选项 → 语音与数据 → LTE）。切换瞬间 BT-PAN 会 drop 一次（radio 重置），然后眼镜端 toggle Internet access off+on 重协商 —— 这次 iPhone 就发标准 DHCPv4 lease 了：
+
+- 眼镜拿到 `172.20.10.10/28`，gateway `172.20.10.1`（iPhone）
+- DNS `172.20.10.1`
+- YodaOS `BluetoothTethering NetworkAgent` 完整注册（score 69，VALIDATED）
+- 默认路由 `0.0.0.0/0 → 172.20.10.1 bt-pan`
+
+切回 5G 后 BT-PAN 会再次只 IPv6，需要再切回 LTE。
+
+#### Sources
+
+- [iPhone hotspot force IPv4 for connected devices (Apple Community)](https://discussions.apple.com/thread/255384679)
+- [Hotspot with iPhone IPv4 not assigning (Apple Community)](https://discussions.apple.com/thread/255466044)
+- [Android 13 device not able to connect to iPhone IPv6 only (Google issue tracker)](https://issuetracker.google.com/issues/376090601)
+- [pwnagotchi bt-tether DHCP PR](https://github.com/jayofelony/pwnagotchi/pull/442) — 类似问题的 Linux 客户端开源解法
 
 ---
 
@@ -147,21 +165,35 @@ iPhone 的"个人热点 → 允许其他人加入"对 Wi-Fi 客户端是 well-su
 
 ---
 
-## 6. 决策 + 当前操作
+## 6. 决策
 
-**保持现状（方案 E）**：眼镜直接连 Linksys WiFi → 公网 → Edge → Cortex。WiFi 是当前最简单可行的方案。
+**采用方案 A（BT-PAN）作为可选省电模式**。WiFi 仍然可用作 fallback。
 
-**已知 pain point + workaround**：
-- 眼镜重启后 WiFi 自动 OFF → `adb -s <glass-serial> shell svc wifi enable`（HANDOFF §7 已有这个 snippet）
-- 长时间穿戴的能耗 → 还没量化，先观察
+### 6.1 用户操作清单（每次想用 BT 共享网络时）
 
-**接下来什么时候重启这个调研**：
+| # | 操作 | 在哪 |
+|---|---|---|
+| 1 | 蜂窝数据选项切 LTE/4G (不是 5G) | iPhone 设置 |
+| 2 | 个人热点 → "允许其他人加入" = 开 | iPhone 设置 |
+| 3 | 蓝牙 → Rokid Glasses → 详情 → Internet access = 开 | iPhone（如果有），或眼镜 |
+| 4 | （可选）关眼镜 WiFi 省电 | Constellation app → Android system settings → Wi-Fi → 关 |
+
+> 第 4 步通过我们 Constellation app Main 屏新加的 "Android system settings" 入口直接到 Android 原生 Settings 顶层 → Wi-Fi。
+
+### 6.2 已知坑
+
+- **iPhone 5G 模式下 BT-PAN 只发 IPv6**（iOS 17+ bug）→ 必须 LTE
+- iPhone 切 5G ↔ LTE 时 BT-PAN 会 drop 一次，需要 toggle Internet access 重协商
+- 眼镜重启后 WiFi 自动 OFF（YodaOS 行为）→ 走 BT-PAN 模式时反而是个好事（不会自动开 WiFi 浪费电）
+- 眼镜进程 OOM 概率：Android Go 内存压力下，Settings + Constellation 同时打开有时 lowmemorykiller 杀 Constellation。重启 app 即可
+
+### 6.3 远期再考虑
 
 | 触发条件 | 行动 |
 |---|---|
-| 量到 WiFi-only 模式下 > 6h 待机就掉电过半 | 试方案 A 改用 Android 手机做 hotspot 重测 |
-| 想做实时视频上传眼镜→Cortex | 直接上方案 C (CXR-M + CXR-S) |
+| BT-PAN 带宽不够（实时视频上传眼镜→Cortex 等）| 上方案 C (CXR-M + CXR-S) Wi-Fi P2P 大带宽通道 |
 | 想做"完全脱离 Rokid 生态" mobile app | 方案 C 仍然推荐 |
+| 想自动化 5G/LTE 切换避免手动 | 短期无解（iOS 没暴露这个 API），需要 iOS Shortcuts / Focus mode 配合 |
 
 ---
 
