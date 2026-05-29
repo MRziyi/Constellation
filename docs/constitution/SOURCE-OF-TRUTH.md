@@ -1263,4 +1263,30 @@ Rev 14 把 R-14.b (pin) / R-14.c (confirmation card) / R-14.d (context bleed) �
 
 提交：Constellation-Glass `3120c9b`(初版 takeover) · `49a65c2`(去 TTL) · `f9c5999`(隐藏 LeakCanary 图标) · `9ce161b`(迁移 overlay 协议 + 2 端口 + 3 槽) · (shortcut-UI 清理) · (up-slide 动画) · Constellation-Server `31ca7d1`(shortcut_config 解析器).
 
+> **Rev 15 的"已知 bug" C-58↔C-59 现已修复**（Constellation-Server `0861c8b`）：context-bleed 块移到决策分支**之前**并改写 `event.payload["text"]`，确认卡暂存的就是已增广文本 → 重注入不丢 context_from. `(untitled)` 标题亦在同 commit 修（`_hud_tmux_register` 接 `ask_text` + `title_for` fallback）.
+
+---
+
+## Revision 17 — 2026-05-30: 活动流 + UC1/UC2 + 每会话权限模式 + 3 类卡片 (C-63 … C-68)
+
+**背景**：Zack 提了一批用例 + 交互要求。(1) 眼镜要像终端一样看到 Claude 正在干嘛；(2) 拍海报写进 twin memo；(3) 语音浏览/续跑历史 session；(4) **不能一律 bypassPermissions**——按对话描述决定权限模式，需要决定权限/回答问题时用卡片问我；(5) 固化 3 类卡片。服务端全部 E2E 验证（合成 reverse-wake + WSS 客户端 + 真机 idle-resume），眼镜端 Kotlin 已写+编译，真机视觉 E2E 待批量做。
+
+| ID | 锁定决策 | 依据 |
+|---|---|---|
+| **C-63** | **CC agent 活动流实时上 HUD**. `_handle_agent_progress` 除发 `kind:"progress"` 外**镜像发 `hud_state`**（与 Cortex 内部步骤 `_emit_progress_to_glass` 一致）——此前 per-tool 细节到了线但 Glass 只渲染 hud_state 故被丢. `_tool_glance` 重写覆盖 CC **全量工具目录**（经典 Task/TodoWrite/MultiEdit/LS/BashOutput/ExitPlanMode/SlashCommand… + 新 Agent/TaskCreate/CronCreate/EnterWorktree/Monitor/ToolSearch/PowerShell… + MCP `mcp__svc__action` 美化）；`thinking`/`redacted_thinking` 块改为显示 `💭 thinking…`. **跳过 tool_result（"out"）+ completed/error**（终态由卡片驱动）. | Zack: "服务器要告诉我 Claude 正在干嘛…我眼镜不需要 bash 的 in/out，但要看到它正在 Read 什么". 真机验过流：💭 thinking · 🔧 bash-desc · 📖 reading X → Card. |
+| **C-64** | **vision `detail` 按意图选档**. `vision_describe` 接 `detail`(low/high/auto) 透传 OpenAI `image_url`；Cortex `_vision_detail_for` 用正则判：读字场景(poster/sign/menu/读/海报/写的什么…)→`high`（切块认字），泛泛"我面前是什么"→`low`(固定 ~85 token). **传输形式(内联 b64)不影响视觉计费，只有分辨率+detail 影响**. | Zack 问成本. 单测 8/8. |
+| **C-65** | **拍照落盘 twin 供 memo 嵌入**. 带 image 的 complex turn，Cortex 直接把 b64 解码写到 `twin/memos/assets/img-<eid>.jpg`（Cortex 已握字节，比塞 130KB b64 进 brief 便宜），并把相对路径塞进 agent brief 的 PHOTO 段 + 嵌入提示 `![](assets/…)`. | UC1. 合成图往返验过. |
+| **C-66** | **语音浏览/续跑历史 session（UC2）**. `session_browser`：列某项目最近 CC session（标题 + **最后一句 user 消息** = "我最后说啥"，纯磁盘读、无 LLM）；语音 pick 解析(`#N`/第N个/EN+ZH)；**live 检测**（ps 匹配真实 `--resume/--session-id <uuid>` 的 claude 进程）. **只 resume idle session**——live 的（在 VS Code 里活着）只读展示，绝不二次 `--resume` 同一 jsonl. 续跑走既有 `claude_code.agent` + `resume_cc_session_id`. **修了既有 bug**：`--resume` 新进程会重弹 bypass 安全门，旧码在 resume 时跳过确认 → 卡死；改为两路都轮询确认. | Zack 用例 + "只允许 idle；live 的只展示". 真机：idle resume 跑出 `RESUMED-OK`；VS Code session 被拦. |
+| **C-67** | **每会话权限模式（不再一律 bypass）**. agent CC 权限模式由**创建对话的那句话**决定并贯穿会话：显式"全自动/都批准/just do it/run everything"→`bypassPermissions`；默认或"需要我验证"→`acceptEdits`（自动接受文件编辑，其他工具弹权限 → 走 checkpoint 卡片）. `_permission_mode_for` 正则判 + 线进 spawn. **安全**：用户 `~/.claude/settings.json` 有 1189 条 allow 规则 → acceptEdits 下常用动作自动跑、不卡；只有真正未授权动作才弹卡. | Zack: "不能 bypassPermissions 啊…需要我验证的用 edit mode，需要决定权限/答案时问我". 真机 agent 无卡死. |
+| **C-68** | **3 类卡片固化 + 权限/问题各有卡**. `emit_card` 打 `card_type`：空 options→`notification`(只 dismiss)、`["answer"]`→`question`、其余→`checkpoint`. **权限请求**(reverse-wake permission)→ checkpoint 卡(approve→CC "Yes"=Enter · reject→"No"=Down,Down,Enter · modify→拒绝+注入纠正). **AskUserQuestion**→ question 卡(单 answer：列出 CC 选项，答以自然语言→开麦→转写→填 CC 的 "Other" 槽). Glass `StateMachine` 按 `card_type` 映射戒指(TAP/LONG/DOUBLE)并发**实际小写 option token**(Cortex 匹配前会 lower). | Zack: "3 类卡牌：通知只 dismiss；checkpoint approve/modify/reject；question 只 answer…填 other 把我的 answer 放进去". WSS E2E：approve→Enter、reject→Down,Down,Enter、question 两步 answer、三类 card_type 都对. |
+
+**待校准/待真机**（代码已写，flagged）：
+- 真实 CC **权限 prompt 检测**（watcher PERMISSION_PATTERNS）+ **AskUserQuestion TUI 检测 & "Other" 导航键数**——合成路径已验管道，真实 TUI 需对着真机标定.
+- 眼镜端 3 卡片渲染 + question answer→麦克风 的**视觉 E2E**（APK 已编译；待部署）.
+- C-66 续跑的 modify-注入 + C-68 permission modify-注入 在真实 tmux 上的时序.
+
+**新协议字段**：Cortex→Glass `card` 帧新增 `card_type`；reverse-wake `wake_kind` 增 `question`.
+
+提交：Constellation-Server `1636ed0`(活动流) · `f847f1d`(C-64+UC2 browser) · `f783f88`(C-65) · `832ce21`(C-66 resume+live) · `1552831`(C-67) · `ec7b338`(C-68 permission 卡) · `9152d9b`(C-68 question 卡+card_type) · Constellation-Glass `b93ce25`(3 卡片渲染+戒指映射).
+
 ---
