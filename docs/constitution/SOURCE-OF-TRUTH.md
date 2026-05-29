@@ -1222,3 +1222,45 @@ Rokid Glasses (`<glass-serial>`) 验证语音路径相同闭环.
 OnePlus 9 (`854afb6b`) phoneDebug 上验证协议层 (request_image 收到, image_attached 即使空也回传); Rokid Glasses (`<glass-serial>`) glass 上验证完整闭环: 单击侧键 → Listening → 说"那是什么?" → Cortex router → request_image → CameraGate 拍照 → Cortex 拿到 image → vision_describe → CARD prose 描述.
 
 ---
+
+## Revision 15 — 2026-05-29 (deep EOD): R-14.b/c/d 全部落地 (C-57 / C-58 / C-59)
+
+Rev 14 把 R-14.b (pin) / R-14.c (confirmation card) / R-14.d (context bleed) 列为"⏸ 推后"。本轮全部实现 + 验证（server-side curl + Rokid Glasses）。
+
+| C | 规则 | 出处 / 验证 |
+|---|---|---|
+| **C-57** | **Pin/unpin 语音命令让 session 逃过 TTL sweeper**. 整句正则 (EN+ZH，锚定 `^...$`，"pin this"/"钉住"/"unpin"/"取消钉住" 等) 在 classifier 之前短路 → 翻转 `_active_hud_session_tmux[sid]["pinned"]` → 发 info-only 确认卡. `_hud_tmux_lookup` + `_hud_tmux_sweeper_loop` 都跳过 pinned. **v1 无数量上限**（依赖用户自觉；上限定值等 P1.8 Phase β idle 数据）. | Zack: "我退出某个 session 之后，它不一定是被掐了". 真机 curl 验过 `session.pinned`/`session.unpinned`. |
+| **C-58** | **Mid-confidence (0.4–0.7) continue → confirmation CARD**. session router 判 continue 但置信度中等时不静默路由，发 actionable 卡 "🧭 Continue '\<title\>'?" (approve/modify/kill)；`_pending_session_routes[cmd_id]` 暂存原 event，决策后带 `_skip_session_router=True` 重注入（防循环）；60s sweep 清理未决条目（蹭 tmux sweeper）. | R-14.c. 真机验过 ("the count again" → conf 0.62 → 确认卡渲染). |
+| **C-59** | **Cross-session context bleed**. router 可在新字段 `context_from` 列出其他 session id；orchestrator 把那些 session 的 `last_summary`（**cap 3 源 / 1500 字符**）prepend 到本轮 prompt，**只读借用、不动源 session**（无 agent_continue、无状态变更）. | R-14.d. 真机验过 (decision=new + context_from=[A,B] → `context_bled n_blocks=2`). |
+
+**已知 bug（留给后续修）**：
+- **C-58 ↔ C-59 交互**：一条 prompt 同时是 mid-conf continue + 有 context_from 时，mid-conf 分支 `return` 早退在 context-bleed 块之前，且确认后 re-inject 带 `_skip_session_router` 又跳过 router → **context_from 被丢**. 修法：重注入时透传 context_from，或在确认卡分支之前先算 bleed.
+- **`(untitled)` 标题**：5 个 `_hud_tmux_register` 调用点都不传 `ask_text`，title 仅来自 agent `structured.summary`；agent 没返回 structured summary 时 → `_derive_session_title("")` → "(untitled)"（pin 卡 / 确认卡都受影响）. 修法：透传 `ask_text`，fallback 顺序改 `new_summary or ask_text`.
+
+提交：Constellation-Server `f186c1f`(http session_id) · `5b469e4`(router context_from) · `7fddd57`(C-57) · `6ca9569`(C-58) · `667a5a4`(C-59) · `dc60a46`(WSS double-emit 抑制) · `95ca6b4`(mic-on-modify，见 Rev 16 C-37 部分).
+
+---
+
+## Revision 16 — 2026-05-29 (deep EOD): 戒指独占 HUD + 2 端口唤起模型 + HUD 去 TTL (C-60 / C-61 / C-62)
+
+**背景**：Zack 宣布戒指项目已完善，**镜腿 / 侧键全部弃用，戒指成为唯一输入面**。Halo Ring 侧由另一个 agent 按 [`docs/cross-device/RESP-halo-ring-overlay-protocol-v1.md`](../cross-device/RESP-halo-ring-overlay-protocol-v1.md) 实现了 exclusive-overlay 协议（比我方 REQ 的 §2.5 per-gesture patch 更彻底）。本 Revision 取代/弱化 C-38 / C-52 / C-54 的物理键部分。
+
+| C | 规则 | 出处 / 验证 |
+|---|---|---|
+| **C-60** | **HUD = 戒指独占 overlay**. HUD 一弹（任意非 Idle/Offline 状态）Constellation 发 `OVERLAY_ACTIVATE`（owner_package + display_name，**每 ~25s keepalive 重发**，戒指 60s 静默自动释放）→ 戒指把**所有**原始手势经 `OVERLAY_GESTURE` 转发给我们、底层 launcher 一点不漏；回 Idle 发 `OVERLAY_DEACTIVATE` 交还. 手势语义全在 Glass 端解释：**TAP**=approve/结束说话/engage · **DOUBLE_TAP**=dismiss/kill · **LONG_PRESS**=modify · **SWIPE_UP/DOWN**=滚动. **唯一逃生口**：系统手势 (TRIPLE_TAP / QUADRUPLE_TAP / LP+SWIPE / DOUBLE_LONG_PRESS) 永远绕过 overlay，用户锁不死. 经 `signature\|privileged` `PUSH_PROFILE`（与戒指同 cert `4022b9b7`）. | Zack: "你没把我的戒指操作独占". 真机验过：真实 SWIPE/TAP 转发进 HUD、launcher 静默、DEACTIVATE 后交还 Navigation. |
+| **C-61** | **戒指只暴露 2 个"唤起"端口**：`voice_invoke`（开/续语音 session）+ 3 个**固定本地槽** `shortcut1/2/3`. **删掉 `kill_active`**（杀是 in-HUD 戒指手势 DOUBLE_TAP，不是唤起端口）+ 删掉动态 `/api/shortcuts` 枚举. 槽位内容 `{prompt, sendPhoto, label}` **app 本地拥有 (`ShortcutSlots`)、语音可改**：用户说 "set shortcut 2 to…" → Cortex `shortcut_config.py` 解析 → `shortcut_config` 帧 → `ShortcutSlots.update`. **sendPhoto=true 时拍照 upfront**，服务器见 image≠None 不再 R-13 二次请求（去重）. 应用内 Shortcuts 屏改为只读 3 槽视图（编辑走语音）. | Zack: "怎么能有这么多触发…能让它主动拉起来的应该只有两个". 真机验过：目录=4 动作（无 kill）、语音配槽 slot2、fire-by-slot + 拍照去重. |
+| **C-62** | **HUD 内容不再计时自动关闭**——卡片 / insight 只在戒指操作后关. 删掉 `cardTtlJob`（C-52 的 F3 动态 TTL）+ `insightTtlJob`. **唯一保留的计时器是麦克风 15s 硬上限**（C-37 能效安全网，针对 mic 空转，不是 HUD 内容关闭）. | Zack: "HUD 的内容不再可以通过计时来自动结束，只能通过我的戒指操作". 真机验过：卡片留 40s 不关、戒指 DOUBLE_TAP 才关. |
+
+**被取代 / 弱化的旧约束**：
+- **C-38**（物理按键为主输入）：镜腿 / 侧键弃用，戒指唯一. C-38 的"无 InstructSdk / 无 wake-word / 能效"精神仍在（戒指走 broadcast/overlay，不是 always-on 语音）.
+- **C-52**（物理键 CLICK/LONG/DOUBLE 控卡）：手势源从镜腿键改成戒指 OVERLAY_GESTURE 转发；语义映射保留（TAP=approve 等），但 F3 动态 TTL 被 **C-62** 删除.
+- **C-54**（fresh-voice 入口走戒指广播）：仍成立；`voice_invoke` 现在是 C-61 两个唤起端口之一.
+- **C-37**（能效第一）：**强化**. mic 只在 modify 时开（删掉每张 actionable 卡投机开麦 30s）；overlay keepalive 是轻量 broadcast；退出动画 net-neutral（替换系统默认右滑，非新增）.
+
+**新协议帧**（补进 [INTERFACE-CONTRACTS.md](../server/INTERFACE-CONTRACTS.md)）：
+- Cortex→Glass `shortcut_config` `{slot, prompt, send_photo, label}`（Glass `?accept=` 已加 `shortcut_config`）.
+- 戒指↔Glass（Doc/18 overlay v1，Halo Ring 侧拥有）：`OVERLAY_ACTIVATE` / `OVERLAY_DEACTIVATE`（Glass→Ring）+ `OVERLAY_GESTURE`（Ring→Glass，extras `gesture` / `from_package`）.
+
+提交：Constellation-Glass `3120c9b`(初版 takeover) · `49a65c2`(去 TTL) · `f9c5999`(隐藏 LeakCanary 图标) · `9ce161b`(迁移 overlay 协议 + 2 端口 + 3 槽) · (shortcut-UI 清理) · (up-slide 动画) · Constellation-Server `31ca7d1`(shortcut_config 解析器).
+
+---
