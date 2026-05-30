@@ -1290,3 +1290,29 @@ Rev 14 把 R-14.b (pin) / R-14.c (confirmation card) / R-14.d (context bleed) �
 提交：Constellation-Server `1636ed0`(活动流) · `f847f1d`(C-64+UC2 browser) · `f783f88`(C-65) · `832ce21`(C-66 resume+live) · `1552831`(C-67) · `ec7b338`(C-68 permission 卡) · `9152d9b`(C-68 question 卡+card_type) · Constellation-Glass `b93ce25`(3 卡片渲染+戒指映射).
 
 ---
+
+## Revision 18 — 2026-05-30 (深夜): Agent SDK 单源重构 + 固化历史铁律 (C-69 … C-76)
+
+**背景**：(A) 把 `claude_code` 复杂-agent 从 **tmux + jsonl-tail + pane-watch 双 worker** 重写成**进程内 Claude Agent SDK 单源**——根治进度/权限乱序（双 worker 是从外部观察 CC 的 hack，两源异步必乱，曾致死锁）。(B) 顺带把这一弧**口头铁律但从未写进 SoT** 的几条正式锁定。全部**服务端真推理 + 真机眼镜 E2E 验过**（白盒进度、权限卡 glass↔cortex 往返 TAP、resume/kill/modify）。藏 `USE_SDK_AGENT` flag、tmux 留 fallback、cortex launchd 持久化带 flag。
+
+| ID | 锁定决策 | 依据 |
+|---|---|---|
+| **C-69** | **STT-review 网关（语音必经我批准才下发）**. 任何语音 intent：`listen → Whisper STT(本地，绝不调 GPT) → STT review 卡(纯转写文本) → TAP 批准才下发`（GPT 分类/router 和 CC 一律）. 空转写也发卡("没听清，长按重讲")，绝不本地静默丢. | 铁律 `stt-review-gate`. STT 可能听错(中英混说)，错误不该无声传播；我对"以我名义发出的内容"要有控制. |
+| **C-70** | **无 dismiss 卡片模型（OK/kill 两终态）**. 一次流程只有 **OK**(TAP=批准/回答/完成) 或 **kill**(双击=终止)；**重讲=LONG**(中间动作)；**禁止 dismiss**. 等决定的卡(checkpoint/question/stt_review)绝不本地丢弃，必发 decision 让 cortex 解 pending；通知卡用 OK 本地 ack(`ackCardLocally`). | 铁律 `card-decision-no-dismiss`. dismiss 语义含糊、会让 cortex 那条流悬空. |
+| **C-71** | **HUD 透明 + 不可抢占 + 接收循环不阻塞**. (1) 出站 glass 帧进**单队列、单 sender 串行发**；决定卡发出后 sender **park 在决定门**，后续进度排队不丢不盖，decision 到达开门. (2) 等决定的卡**绝不被进度帧抢占**(`handleHudState` 在 Card 态丢弃进度). (3) 进度必带具体文字(禁止光秃图标)、`thinking` 只在真 thinking 块. (4) **glass 接收循环绝不 await 长任务**——agent 走 `_spawn_bg` 后台，否则卡在 await 收不到权限批准 → CC 永等授权 → **死锁**(真实事故). | 铁律 `hud-transparency-no-preempt` + 死锁教训. |
+| **C-72** | **进程内 Claude Agent SDK 单源**取代 tmux 双 worker（复杂-agent 路，藏 `USE_SDK_AGENT`、tmux 留 fallback）. **`ClaudeSDKClient`（非一发式 `query()`——权限协议需双向流保持开，否则 `can_use_tool` 报 "Stream closed" 永不触发）** + `include_partial_messages` = 单一有序流；**`canUseTool` 原生权限门取代 pane-watch 抓菜单 + send_keys 键序模拟整套**；进度移植 `_tool_glance`/`_summarise_tool_result`（全工具类 + 编辑增删行数 + 命令输出 + 叙述文本💬 + thinking💭只真思考）；CC **进程内跑在 Cortex**（canUseTool 直接 await 戒指决定 future、无 WSS 跳；与 `_spawn_bg` 后台派发兼容）. 产出与 tmux **同形 `rpc_result`**，下游 `_send_agent_card_for_decision` 不改. | Zack 拍板 `agent-sdk-single-source-refactor`. **作废**(flag 开时)：C-68 的 pane-watch 权限检测 + send_keys 键序(approve=Enter/reject=Down,Down,Enter)整套不用. 服务端 8 测 + 真机 E2E. |
+| **C-73** | **「自动模式」四字才 bypass，默认 acceptEdits**（收窄 C-67）. `_permission_mode_for`：话里含 **"自动模式"** → `bypassPermissions`(无卡全自动)；**其它一律 `acceptEdits`**（"全自动"/"just do it"/yolo **不再触发**）. acceptEdits：文件编辑自动放行、其它工具→**checkpoint 卡**(approve/modify/reject)、AskUserQuestion→**question 卡**(answer-only). **AskUserQuestion 答案经 `PermissionResultAllow(updated_input["answers"])` 按 question 文本为 key 回传**（passthrough/header-key 都回传空、CC 报 no answer）. | Zack: "有'自动模式'这四个字才能开". 收窄 C-67 的宽泛触发. 真机权限卡 TAP 验过；AskUserQuestion 契约探针验过. |
+| **C-74** | **kill=interrupt + resume=session_id**. kill(双击/reject)→ `client.interrupt()` 掐整条 query（或 `PermissionResultDeny(interrupt)`），session jsonl 落盘留**可 resume**；continue/modify/UC2 续接 → `SdkAgentSession(resume_session_id=…)` → `ClaudeAgentOptions(resume=)` 全历史恢复. modify-on-final/checkpoint(`_resume_agent_with_modify`/`_resume_agent_phase`) + UC2 挑历史会话(`_handle_session_browse_pick`) 全加 SDK 分支. | point 6/8. 服务端验：resume 召回上下文 + modify 产出修正结果(banana→cherry) + interrupt 中途掐停. |
+| **C-75** | **计费铁律：SDK 走订阅、绝不偷扣**. headless `claude`/Agent SDK 由**认证**决定计费：进程**绝不带 `ANTHROPIC_API_KEY`**（在 `-p` 下 "always used when present"→API 付费），靠 Keychain `/login` 订阅. **关 usage credits → 额度用尽即停、不扣费**；`RateLimitEvent.status=='rejected'` / `AssistantMessage.error∈{rate_limit,billing_error}` → 弹「额度用尽」卡（`overage_status='rejected'` 是**正常态**、非用尽）. **2026-06-15 起** Agent SDK+`claude -p` 走**独立月度额度**(Pro $20 / Max5x $100 / Max20x $200). cortex launchd plist 带 `USE_SDK_AGENT=1` + PATH 含 `~/.local/bin`(claude). | Zack: "claude -p 独立计费能避免就避免". 官方文档坐实(code.claude.com/docs/authentication + support 15036540). 真机 `status=allowed overage=rejected`=走订阅. |
+| **C-76** | **续接类决定 → Thinking 不回 Idle（动画一致）**. glass `emitDecision`：**续接**(approve on checkpoint/stt_review、modify/answer 带文字——流程还要继续出结果卡)→ `Thinking`(窗口留着、平滑内容替换)；**终态**(reject/kill)→ `Idle`(overlay detach = 上滑退出动画). 修「卡→卡=内容替换、不算退出」——原来 approve 也回 Idle 致拆窗(上滑)又重建=抖动. 一处修覆盖权限卡 + **每次 STT-review approve** + modify/answer. | 真机联调发现+修+验. Glass `d6bb8ba`. |
+
+**真机 E2E 已验**（不再 flagged）：白盒进度上 HUD · 权限卡 glass↔cortex 往返(say-task TAP approve→命令执行→结果卡) · resume/kill/modify 服务端 · 续接动画顺.
+**操作铁律**：眼镜 WSS **空闲 ~4 分钟静默掉**(server_bound→false、无 disconnect 日志)；驱动前必确认 `server_bound=True`，掉了跑 force-stop→WAKEUP→launch→HOME 重连(轻唤醒不够). cortex 经 **launchd 自启**——注意 **launchd 下 TCC 隐私权限丢**(`tcc_check n_ok=0`)，Apple 适配器/简单路受影响、**SDK 复杂路不受**.
+
+**新协议/配置**：`USE_SDK_AGENT` env flag(cortex)；`~/Library/LaunchAgents/com.constellation.cortex.plist` 修正(原路径写成 `Constellation/cortex` 不存在 → 改 `Constellation-Server/cortex`、带 flag + PATH、KeepAlive 自启).
+
+**仍未落地**（roadmap）：SDK 稳跑几天后**删 tmux 双 worker**(claude_code.py 的 tmux/jsonl-tail/pane-watch/send_keys、简化出站决定门——单源有序后排序 park 可去)；launchd 下 TCC 授权(Apple 工具)；StreamEvent token 级文本流(可选)；UC1/UC2 真机闭环 UX.
+
+提交：Constellation-Server `main` ← `1f4b47d`(merge P1) ⊃ `e4c180a`(骨架)·`d9b906f`(ClaudeSDKClient+计费)·`a07df4c`(白盒进度+自动模式门控)·`04766f0`(resume+interrupt)·`2d684e2`(modify-resume)·`a125104`(AskUserQuestion)·`b122bff`(UC2 resume) · Constellation-Glass `pivot/baremetal-v2.1` `d6bb8ba`(续接动画修复).
+
+---
