@@ -1311,7 +1311,8 @@ Rev 14 把 R-14.b (pin) / R-14.c (confirmation card) / R-14.d (context bleed) �
 
 **新协议/配置**：`USE_SDK_AGENT` env flag(cortex)；`~/Library/LaunchAgents/com.constellation.cortex.plist` 修正(原路径写成 `Constellation/cortex` 不存在 → 改 `Constellation-Server/cortex`、带 flag + PATH、KeepAlive 自启).
 
-**仍未落地**（roadmap）：SDK 稳跑几天后**删 tmux 双 worker**(claude_code.py 的 tmux/jsonl-tail/pane-watch/send_keys、简化出站决定门——单源有序后排序 park 可去)；launchd 下 TCC 授权(Apple 工具)；StreamEvent token 级文本流(可选)；UC1/UC2 真机闭环 UX.
+**已落地（同日续）**：**tmux 双 worker 已退役**(Constellation-Server `254126a`，+68/−2535 行)——SDK 唯一复杂-agent 路；server.py 死 tmux 码 + http cc-debug tmux 路由删；claude_code adapter Track B 全删(1894→265，留 Track-A: draft/run/continue_/list_sessions)；distiller 迁 `SdkAgentSession(bypassPermissions)`. 真机验：cortex 干净启动 + 复杂任务端到端.
+**仍未落地**（roadmap）：launchd 下 TCC 授权(Apple 工具/简单路)；StreamEvent token 级文本流(可选)；UC1/UC2 真机闭环 UX；出站决定门可进一步简化(单源有序后排序 park 非必需，现保留用于 attention pacing).
 
 提交：Constellation-Server `main` ← `1f4b47d`(merge P1) ⊃ `e4c180a`(骨架)·`d9b906f`(ClaudeSDKClient+计费)·`a07df4c`(白盒进度+自动模式门控)·`04766f0`(resume+interrupt)·`2d684e2`(modify-resume)·`a125104`(AskUserQuestion)·`b122bff`(UC2 resume) · Constellation-Glass `pivot/baremetal-v2.1` `d6bb8ba`(续接动画修复).
 
