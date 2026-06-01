@@ -1317,3 +1317,25 @@ Rev 14 把 R-14.b (pin) / R-14.c (confirmation card) / R-14.d (context bleed) �
 提交：Constellation-Server `main` ← `1f4b47d`(merge P1) ⊃ `e4c180a`(骨架)·`d9b906f`(ClaudeSDKClient+计费)·`a07df4c`(白盒进度+自动模式门控)·`04766f0`(resume+interrupt)·`2d684e2`(modify-resume)·`a125104`(AskUserQuestion)·`b122bff`(UC2 resume) · Constellation-Glass `pivot/baremetal-v2.1` `d6bb8ba`(续接动画修复).
 
 ---
+
+## Revision 19 — 2026-06-01: 视觉单源直喂 + 双 cue/分档 + 卡片来源 + prompts 单源 + model override + redo 清除 + 连接根治 + 图片归档 + 视觉抢拍 (C-77 … C-85)
+
+**背景**：两弧合并固化。(A) 05-31「视觉重设计」弧——删 `vision_describe`(图→文字工具)、图直喂模型、分辨率分档、卡片来源固化、prompts 单源——**一直没写进 SoT**，本次补上。(B) 2026-06-01 一弧——点名模型强制路由、STT 健壮性(简繁/gbt/去 \b)、redo 全清除(LONG=modify)、连接根治(FGS 被 app-idle 杀的真因 + 电池豁免)、图片全归档、相机 ResolutionSelector 直出、视觉抢拍——全部已提交+推送+真机验(视觉抢拍待真嗓 E2E).
+
+| ID | 锁定决策 | 依据 |
+|---|---|---|
+| **C-77** | **Vision 单源直喂 · 严格禁图→文字**. 删 `vision_describe`(把照片预先 GPT-Vision 转文字再喂下游 → SDK 时代模型本就多模态、预消化反让它当 OCR 跳过任务). 图**原样**喂跑的那条路：simple=router 的 user message 变多模态 content list(prompt+图)给 gpt-5.2；complex=base64 image content block 喂 Claude SDK. **全局禁任何「图→文字」中间步/OCR**(读图里文字答问是正解、不是降采样). | Zack: "vision_describe 这个工具就是错的；需要图就把图给它，严格禁止任何图→文字降采样". 05-31 弧 commit `39b41bc`/`2c1c4cd`. |
+| **C-78** | **视觉确定性双 cue + 分辨率分档**. 拍照是**关键词 opt-in**(非 LLM 猜)：`「视觉」`=唯一拍照触发→**standard(1024px/q85)**；`「细节视觉」`(细节前缀)→**detail(2048px/q90)**；**裸「细节」绝不触发**(常用词). cue 匹配**子串**(非 `\b`——CJK 也是 `\w`、`\bgpt\b` 在「用gpt」里不成立)、含**简繁**(`[视視][觉覺]`/`[细細][节節]`)+错听. cortex 只发**档位名**，眼镜 `CameraCapture.Tier` 映射像素 + **`ResolutionSelector` 让相机直出近目标分辨率**(原全传感器 4.6MB JPEG→~320KB、端侧 takePicture+降采样 2.5s→~1.2s). | Zack: 「细节常用词→改成"视觉"/"细节视觉"两明确 cue」+「按分辨率直出」. 真机：raw 4.6MB→320KB、暖态总耗 2.7s→1.2s. |
+| **C-79** | **卡片来源固化**. 每张卡 `source` **必填**(`emit_card` kwarg，漏传=报错；`_emit_glass_frame` 兜底任何无 source 的 card 帧填 `"Cortex"`+warn). 布局：**左下=操作说明、右下=来源**. taxonomy：Whisper(STT)·GPT/GPT Vision(simple)·Claude/Claude Vision(agent)·Cortex(info). | Zack: "严格保证每一张卡片都有标注". 05-31c commit `3492482`. |
+| **C-80** | **prompts/patterns 单源 `cortex/cortex/prompts.py`**. 三段：**MODELS**(各 LLM 步 model + env 覆盖链)·**PATTERNS**(所有 regex/keyword：vision cue/detail/auto-run/pin/decision token/browse/shortcut/model-override)·**PROMPTS**(各 system prompt + whisper ZH). 消费方 `from .prompts import X as 原名`、用法处零改动. **未搬**：agent_brief/distiller 的 brief 构造器(逻辑+文本交织). | Zack: "prompt 和 pattern 的预定义量放一个文件方便审查维护". 05-31c commit `5d7669f`. |
+| **C-81** | **model override（点名模型强制路由）**. 话里点名模型=确定性 pin、不让 classifier 猜：`gpt/chatgpt/openai`→简单 router 路；`claude/克劳德/cloud`→复杂 agent 路(`cloud`=claude 最常见错听). **子串匹配**(同 C-78 去 \b)、`g\s?[pb]\s?t` 收 "gbt" 错听；**Claude 赢平局**(agent 可降级单步、router 不能升级). 在 classifier 之前注入、命中即跳过 classifier. | Zack: "明显提到 GPT/Claude 类似物就肯定用那个". 真机：「用視覺用gbt推理」→ override=gpt+拍照. |
+| **C-82** | **redo 全局清除 — LONG 统一 modify(开我的 STT 给反馈)**. checkpoint(含「Claude needs you」权限卡)LONG **永远 emitDecision("modify")**→cortex 开麦(modify_<cmd_id>)、我说的反馈喂给 agent(删旧 `redoFreshListening` 本地丢卡——它会丢弃 pending 流，是 bug)；stt_review LONG=重讲(`modify`→`_respeak_stt` 重开麦)；footer "LONG redo"→"LONG modify". 决策 token 集**瘦到戒指真发的** `approve/modify/kill`(删同义词长列表 + `_classify_user_decision` 自由文本兜底——戒指只发固定 token、自由文本路走不到). | Zack: "redo 没有任何意义，全局严格移除，应该是 modify 进我的 STT 给反馈". 收窄 C-70 的"重讲"实现. |
+| **C-83** | **连接根治：FGS 电池豁免 + 首拉自愈**. "~4 分钟掉线/拉两次"真因 = **YodaOS 以 "app idle" 杀前台服务**(appop `RUN_ANY_IN_BACKGROUND=ignore` + 非 Doze 白名单)，**非 BT-PAN socket 掉**(C-71/Rev18 注记需更正). 修：MainActivity 启动请求 **`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`**(一次性系统框、YodaOS 验过能渲染)→服务常驻(相机预热也随之常热). 另：`confirmAlive` stale 重连预算 5s→12s(覆盖 BT-PAN 冷握手)、`onPrimaryClick` 失败自动重试一次(首拉不再静默退). | 真机日志坐实("Stopping service due to app idle")+ adb 白名单验证. 详见 memory `connection-4min-disconnect-fgs-fix`. |
+| **C-84** | **图片全归档（不管用不用）**. 每张到达 cortex 的照片落盘 `~/constellation/twin/captures/<utc-ts>-<req_id>.jpg`，**二进制 + legacy base64 两路**，在 pending-future 检查前归档(连孤儿帧也存)、best-effort 绝不抛进接收循环. 区别于 `_persist_image_to_twin`(只在嵌 memo 时). | Zack: "图片其实已经发到服务器了，每次发过来就保存一下，不管用不用得到". |
+| **C-85** | **视觉抢拍（speculative capture）**. 终转写带视觉 cue(fresh intent)→audio_end **立即发 request_image**(`_send_image_request` enqueue 在 STT-review 卡之前→sender park 前就发出、C-71)，把 capture+传输藏在 review 窗里；图 **held un-processed**——**仅 approve 才经 `_route_stt_approved` 喂模型(C-69 STT 网关不破)**；非 approve(modify/kill)取消 future(图若仍到达=归档 C-84、绝不喂模型). `_request_image_from_glass` 拆成 `_send_image_request`/`_await_image_request` 两半以保发送顺序. | Zack: "完成视觉抢拍". 设计守 C-69：抢的是图(资源预取)、不是下发. cortex-only(glass 已有 request_image). |
+
+**真机验**（2026-06-01）：连接(电池豁免→服务常驻、单拉一次成)·STT 健壮(`用視覺用gbt`→拍照+GPT)·redo→modify·相机直出(raw 4.6MB→320KB、暖态 2.7s→1.2s)·图片归档·model override. **待真嗓 E2E**：视觉抢拍(dev endpoint 绕过 STT 网关、需真语音过 audio_end 才能验抢拍时序).
+**操作更正**：Rev 18 把"~4 分钟掉线"归因 BT-PAN——**真因是前台服务被 app-idle 杀**(C-83)；电池豁免后该症状应消失.
+**提交**：Constellation-Server `main` `e38115c`(本弧前半)+ 视觉抢拍/Rev19(本提交) · Constellation-Glass `pivot/baremetal-v2.1` `42e8e95`(连接)·`26e11a6`(redo)·`1585c7d`(相机直出) · Constellation-Console `main` `46e6f20`(卡片来源).
+
+---
