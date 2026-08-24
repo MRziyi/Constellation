@@ -638,7 +638,7 @@ Phase 2/3a 收尾后 Zack 在 v0.5 multi-step + 12-adapter 路径上做了几次
 
 1. **CXR-L SDK 是手机端 SDK，不是眼镜端**. v1.0.1 官方文档（`developerdoc.rokid.com/sdk`，2026-05-07）首句明示 "CXR-L SDK 运行在手机端". 我们的 `Constellation-Glass` 目标是装在眼镜上的 HUD app，应走 **裸机 (bare-metal)** 路径 —— 直接装到眼镜 Android Go 系统上，不通过 Rokid AI App 桥接.
 2. **InstructSdk 依赖 Sprite 语音助手长开**. 官方 doc: "指令触发需要用户打开眼镜设备'设置'中'语音助手激活'开关". 这与"能效是项目第一指标"的新约束冲突.
-3. **Rokid Glasses 物理输入完全暴露**. `reference/rokid-glass/bare-metal-docs/01-key-events.md`: 系统以 `ACTION_SPRITE_BUTTON_*` + `ACTION_TWO_FINGER_*` 有序广播形式投递按键事件，`BroadcastReceiver` 可在 Service 里直接接，无需 Activity 在前台. 物理键覆盖所有交互需求.
+3. **Rokid Glasses 物理输入完全暴露**. the Rokid key-event docs (see `reference/INDEX.md`): 系统以 `ACTION_SPRITE_BUTTON_*` + `ACTION_TWO_FINGER_*` 有序广播形式投递按键事件，`BroadcastReceiver` 可在 Service 里直接接，无需 Activity 在前台. 物理键覆盖所有交互需求.
 
 ### 新约束（追加到 §8）
 
@@ -1337,5 +1337,40 @@ Rev 14 把 R-14.b (pin) / R-14.c (confirmation card) / R-14.d (context bleed) �
 **真机验**（2026-06-01）：连接(电池豁免→服务常驻、单拉一次成)·STT 健壮(`用視覺用gbt`→拍照+GPT)·redo→modify·相机直出(raw 4.6MB→320KB、暖态 2.7s→1.2s)·图片归档·model override. **待真嗓 E2E**：视觉抢拍(dev endpoint 绕过 STT 网关、需真语音过 audio_end 才能验抢拍时序).
 **操作更正**：Rev 18 把"~4 分钟掉线"归因 BT-PAN——**真因是前台服务被 app-idle 杀**(C-83)；电池豁免后该症状应消失.
 **提交**：Constellation-Server `main` `e38115c`(本弧前半)+ 视觉抢拍/Rev19(本提交) · Constellation-Glass `pivot/baremetal-v2.1` `42e8e95`(连接)·`26e11a6`(redo)·`1585c7d`(相机直出) · Constellation-Console `main` `46e6f20`(卡片来源).
+
+---
+
+## Revision 20 — 2026-06-01 (深夜): 外挂卡片解耦 + 白盒真实阶段 + 按任务模型/effort + resume 还原 + 结果卡 (C-86 … C-90)
+
+**背景**：2026-06-01 弧的**后半**——Rev 19 只固化了前半（视觉单源/双 cue/连接根治/抢拍等），把这五条**编排与呈现层**的锁定项补进 SoT。全部已提交+推送，且 Zack **真机已验通过**（视觉抢拍外挂卡三态渲染、白盒阶段文字、模型/effort 提速、resume 还原、结果卡、reminder 真 due-date 均确认 OK）。
+
+| ID | 锁定决策 | 依据 |
+|---|---|---|
+| **C-86** | **外挂（satellite）卡片解耦 + 第二个 ungated sender（C-71 的 sanctioned 例外）**. 视觉抢拍/capture 的进度做成**主卡下方一张独立 satellite 卡**，走**第二个 ungated sender**(`_glass_satellite_sender_loop`，与主 sender **共享 ws 写锁**但**不进决定门**)——所以 STT-review 卡 park 时它**照样刷** `capturing → receiving·NN KB → done`. `_emit_satellite(stage,detail,icon)` 快入队(不 await，守接收循环不阻塞铁律). **both-ready 异步门**：`approve`(出 prompt) 与 `await image`(可选) 解耦，谁先好谁等谁. glass：`satellite_card` 帧 + `HudSnapshot.satellite*` + `AppStateHud` 主卡下渲染. | Zack: "完成视觉抢拍的状态展示". **明确例外**：C-71 是"单队列单 sender"——satellite 是**唯一获批的第二 sender**(它本就不该被决定门 park、否则抢拍进度看不见)，**绝不可误并回主队列**. |
+| **C-87** | **白盒收紧：杀「Working…」兜底 + 真实阶段命名**. 删 glass 的 `"Working…"` 泛兜底 → `updateThinking` **持久化上一条真实状态**(没有新状态就保持旧的、不退回泛词)；裸兜底改 `sending your request…`；**回 Idle 清残留**(下一轮不闪上轮状态). 阶段一律具体：`capturing photo on glasses…` → `receiving photo · NN KB over Bluetooth`(头帧带 `bytes_len`——BT-PAN 传输才是耗时大头，给真实字节数). 再确认 💭thinking **只在真 ThinkingBlock**. | 收紧 C-71(4)「进度必带具体文字、禁光秃 spinner」. Zack 要"白盒、看得见在干嘛". |
+| **C-88** | **按任务调 模型 + effort + thinking**. classifier 在 `{complex,why}` 外多输出 **`effort`**(按**推理深度**判、非步骤数)；dispatch 把 effort **同时映射 模型 + thinking 预算**：`low/medium` → **Sonnet + 低 effort**、`high+` → **Opus + 深思考**. 实测机械多步任务 **~93s→~53s、成本砍半**. **冷启动**(spawn CLI + 大图首 token)Sonnet 后 ~17s；**热启动池不值**(只省 CLI spawn ~3-5s，大头是模型首 token、非进程). | Zack: "按任务复杂度调模型省时省钱、简单的别开 Opus". 日志 `agent.model_effort` / `classifier.decided ... effort=`. |
+| **C-89** | **resume 沿用原 session 的模型/effort 配置**. 续接(modify-on-final/checkpoint/UC2)**不换模型**：①同进程存 `_session_agent_config[cc_session_id]={model,effort}` 还原；②跨进程传 `model=None` → `claude --resume` **沿用 jsonl 里记的原模型**(SDK 仅在显式设才发 `--model`，确认见 claude-agent-sdk 的 `_internal/transport/subprocess_cli.py:272`). | Zack 明确要求：续接同一会话不能中途换模型(否则上下文/风格不一致). 配合 C-74(kill+resume)、C-88(初次按 effort 选). |
+| **C-90** | **结果卡（持久 ✓ Done）+ 反馈正确性修复**. 执行类任务完成 → 一张**持久 `✓ Done` 卡**(替代 Rev18 的瞬时 `completed→Idle`)，Zack **看到做了啥再 TAP OK** 回 Idle. 同弧两修：(a) **reminder 时间结构化**——`agent_brief` 加硬 **TIME RULE**：时间进 `due_iso`、**不留 title 文本**(修"reminder 没真 due-date"的 bug)；(b) **modify 残留清除**——`updateListening` 对 null 会保留上次 partial → 加 `clearListeningPartial()`，每次 `startListening` 调(modify 重听不再显上一句). | Zack: "执行完给我一张卡看做了啥、别一闪而过". reminder/modify 是同弧顺手修的正确性 bug. |
+
+**真机验**（2026-06-01，Zack 确认 P0 全过）：外挂卡在 Listening/Card/Thinking 三态渲染 · 白盒阶段文字(receiving·NN KB) · 模型/effort 提速(机械任务砍半) · resume 还原原配置 · 结果卡 + modify 不残留 · reminder 真 due-date.
+**仍欠**（roadmap，**非约束**）：**#3b 最终卡「长按继续」**——结果卡/agent 卡 LONG=接着同 `session_id` 用 STT 续聊(卡带 `continuable` 标志 → glass LONG 发 `continue`/`modify` → 复用 modify-on-final resume，已会还原原模型/effort)；glass 要动卡片手势 + footer. 多轮提过、**一直没建**.
+**提交**：Constellation-Server `main` `5c77a17`(satellite+白盒+模型effort+结果卡) ⊃ `5fbf2d2`(reminder 时间) · Constellation-Glass `pivot/baremetal-v2.1` `f32b72e`(外挂卡+白盒+清残留) · Constellation-Console `main` 未动(`46e6f20`).
+
+---
+
+## Revision 21 — 2026-06-01 (深夜): People-Recall — 会议人物记忆 / 本地人脸召回 (C-91 … C-93)
+
+**背景**：新 user journey（Zack 拍板，本轮重心）。会上遇到人会忘、事后难 reconnect → ① **录入**（专用 shortcut：拍脸 + 开麦说简介 → 进 Twin 认识的人）② **召回**（shortcut → 低像素拍照 → 本地人脸比对 Twin 人脸库 → 3 秒内 HUD 弹出"这是谁 + 何时何地认识 + 做什么"）。**核心架构判断：召回链路绝不走 LLM**——确定性本地管线（拍照→人脸 embedding→最近邻→渲染录入时存好的 blurb），匹配亚毫秒、瓶颈只剩拍照+传输（已优化）。服务端全链路 dev 验过（enroll/match 1.0 命中、陌生人 0.10<阈值、`mode=face_recall` 早返命中 `face_recall.hit`）；glass 编译过；**真机 fire E2E 待 Zack**（需戒指+真脸+语音）。
+
+| ID | 锁定决策 | 依据 |
+|---|---|---|
+| **C-91** | **People-Recall：召回是确定性本地链路、绝不走 LLM**. shortcut 在 `face_recall` 模式触发 → 上行带 `mode` + upfront 照片 → cortex `_handle_user_invoke` **在 classifier 之前早返** `_handle_face_recall`：本地人脸 embedding → 最近邻匹配人脸库 → `_emit_info_card`(渲染**录入时就写好的 `recall` 一行**，source=`Cortex`)。**热路径零 LLM、零 token、零模型往返**——这是"时效短"的根本。无命中/无脸各出对应只读卡。**守 C-69**：召回非语音、纯本地查库、只展示给本人、无对外发送 → 不触 STT 网关、可免门快走（录入是语音 → 照常过 review）。**守 C-77**：人脸识别是**生物特征检索**(脸→embedding→取记录)，**不是**被禁的"图→文字喂 LLM"，且召回根本不喂模型——性质不同。 | Zack: "立刻激活 shortcut 立刻拿到，不影响跟人对话"。时延预算 ~2.5–3.5s（拍照+传输为主）。dev 验：`face_recall.hit score=1.0`. |
+| **C-92** | **进程内 on-device 人脸引擎 + 派生人脸库**. `cortex/cortex/face_index.py`：**InsightFace（buffalo_l, SCRFD 检测+ArcFace 512-d）via onnxruntime CoreML EP**（Apple Silicon），**进程内**(召回延迟关键、零 IPC、避开 tool-agent)、**懒加载 + 启动后台预热**(`main._prewarm_face`，仿 whisper 预热)。匹配 = L2 归一 embedding 的 numpy 点积 argmax，cosine 阈值 **0.40**(env `CONSTELLATION_FACE_THRESHOLD`)。多脸取**最大**(正对的人)。**全本地、脸不出 Mac**(隐私)。数据：**真相在 `people/encounters/<slug>.md`**(同 `core/*.md` 体例 + `recall:` 行 + `face:` 指针)；**`people/_faces/index.json` 是派生缓存**(每条带预算好的 embedding，启动只读 JSON 不重算)+ `_faces/<slug>.jpg` 脸 crop。实测暖态匹配 ~60–370ms。**注**：旧 `_system/confirm-policies.md` 里的 `local_face_recognition:*` 工具条目是早期预留、与本进程内实现无关，无害。 | dep 选型：InsightFace 不需 torch、CoreML 吃 M 芯片；否决 dlib(arm64 难装/128-d)、Apple Vision(无识别 embedding API). Phase 0 离线验：buffalo_l 60ms、阈值 0.40 干净分离(同人 1.0 / 异人 0.10). |
+| **C-93** | **shortcut 三模式 + 录入复用 STT-review 骨架**. `ShortcutSlots.Slot` 加 `mode`：`task`(默认，原行为) / `face_recall`(认人) / `enroll_person`(记人)；face 模式**必拍照**。语音设 shortcut 时 `parse_shortcut_config` 让 LLM 判 mode（"认人/recognize/这是谁"→face_recall、"记住这个人/remember"→enroll_person），cortex→glass 的 `shortcut_config` 帧带 `mode`、glass 存进 slot、fire 时 `ShortcutFireClient` 上行带 `mode`。**录入流程**：fire(enroll_person) → `_handle_enroll_start` 暂存脸 + `emit_mic_open(enroll_<id>)` + 提示卡 → 说简介 → **STT-review 卡(C-69)** → approve → `_route_stt_approved` 的 `enroll` 分支 → `_handle_enroll_person`：**一次轻 LLM 补全**(`enroll_parser`，prose→{name/org/met_at/research/recall…})写 `people/encounters/<slug>.md` + **确定性** `face_index.enroll` 存 embedding。复用 `intent` 派生(`enroll_` 前缀)+ `_pending_stt_review` 携带 + `_respeak_stt`(重讲重开同 enroll 麦). | Zack 拍板：录入走**专用 shortcut**（拍脸+开麦），召回**纯确定性即时卡**。dev 验：parse → mode=face_recall/enroll_person/task 三态正确. |
+
+**真机验**（服务端，2026-06-01）：人脸引擎 CoreML 加载 + enroll/match(1.0)/陌生人(0.10) · `mode=face_recall` 经 `/api/test/invoke` 早返 → `_handle_face_recall` 命中 · shortcut 配置三模式 LLM 解析正确 · glass `assembleGlassDebug` 编译.
+**待真机 fire E2E**（需戒指+真脸+语音，Zack 在场）：fire shortcut(recall) 拍脸→召回卡 + 时延 <3.5s + satellite「matching…」· fire shortcut(enroll)→开麦说简介→STT review→approve→写 `encounters/*.md` + 结果卡。**前置**：装新 glass APK（重装会重置电池豁免 appops，需 Zack 重点 Allow 或 adb 兜底）。
+**新协议/配置**：`mode` 字段贯穿 shortcut 链（slot/`shortcut_config` 帧/`/api/test/invoke` payload）· dev 端点 `/api/dev/face_recall` `/api/dev/face_enroll`(离线验证，不污染真 twin)· env `CONSTELLATION_FACE_MODEL`(默认 buffalo_l) `CONSTELLATION_FACE_THRESHOLD`(0.40)·新 cortex 依赖 `insightface/onnxruntime/opencv-python/numpy`.
+**提交**（**未 push、待真机 fire 验**）：Constellation-Server `main` 工作区(face_index/enroll_parser 新增 + server/http/main/prompts/shortcut_config 改 + pyproject) · Constellation-Glass `pivot/baremetal-v2.1` 工作区(ShortcutSlots/ShortcutFireClient/StateMachine/ConstellationService mode).
 
 ---
