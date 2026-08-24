@@ -1,0 +1,11 @@
+Constellation
+Copyright 2026 Zack Zhang
+
+This product includes software developed by the Constellation project.
+
+Third-party SDKs and vendor documentation referenced by this project (Rokid
+Glasses SDKs and developer documentation, whisper.cpp, InsightFace, and the
+Android/Jetpack and Python libraries listed in each component's dependency
+manifest) remain the property of their respective owners and are governed by
+their own licenses. Vendor documentation is not redistributed in this
+repository; see reference/INDEX.md for the authoritative sources.

@@ -126,7 +126,7 @@ UC3 has 4 sub-modes:
 | 1 | Quick Shortcut #1 (DT+SWIPE_UP) → photo + preset prompt | ✓ Phase 3 |
 | 2 | Cortex Router | `local_face_recognition.match` → returns match | ✓ Phase 6 |
 | 3 | Cortex Router (2nd pass) | `fs.read people/core/{slug}.md` → synthesize summary | ✓ |
-| 4 | `hud_show` info card per [ui-mockup §1.10](../../Doc/ui-mockup.html) | ✓ |
+| 4 | `hud_show` info card per [ui-mockup §1.10](../assets/ui-mockup.html) | ✓ |
 | 5 | LOG ENCOUNTER option → `fs.append people/core/{slug}.md` with new encounter timestamp | ✓ |
 
 **Verdict 3B**: ✓ **PASS**.

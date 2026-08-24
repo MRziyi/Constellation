@@ -81,7 +81,7 @@
 
 - **Glass 不区分语音意图来源**（Ring tap / temple touch / voice keyword）—— 都是 Glass 内部的事
 - **每次 `user_invoke` 必带 image + text**：为了避免漏采视觉信息，Glass 触发时立刻抓快照（节能 vs 漏信息的 trade-off 选了不漏）
-- **两个 Global gesture 入口**（参 [Doc/ui-mockup.html §3](../../Doc/ui-mockup.html)）:
+- **两个 Global gesture 入口**（参 [Doc/ui-mockup.html §3](../assets/ui-mockup.html)）:
   - **Quick Shortcut**: `text` = 预置 prompt (来自 `twin/skills/shortcuts.md`)、`image` = 即刻拍照、不开麦
   - **Voice Invoke**: `text` = STT 实时转录、`image` = 即刻拍照、麦克风 + VAD-stop
 - Cortex 端 Vision 推理（OCR / 场景理解）用 GPT-4V；**人脸识别归 Tool Agent 本地模型**（v0.4 修订 OQ-C5）
@@ -512,7 +512,7 @@ v1 token ↔ 标签是 **手工分配**（你自己发 token 时决定它对应�
 | v0.2 | 首版（设计阶段）：Event/Command/RPC/Twin/MCP 5 套 schema；Glass 简化（砍 ID/device/手势）|
 | v0.3 | Event kinds 合并：`voice_text` + `photo` → `user_invoke` (image + text 一起带)；新增 §1.5 Hybrid Connection Model；明确 Vision 归 Cortex；OQ-S5 新增 push payload 问题 |
 | v0.4 | type `preference` → `skill`（Twin 是 "AI 怎么作为我做事" 的指令集）；新增 `identity`/`encounters`/`memory` 三个 type；type-specific 字段更新；详细 schema 移到 [DATA-MODEL.md](DATA-MODEL.md) |
-| v0.5 | `user_decision.decision` 取值从 `confirm/reject/dismiss` 改为 `send/feedback/dismiss`；feedback 类型自带 `feedback_text` (新一轮 STT)；新增 §1.5 Feedback Loop；§1.4 加入 Quick Shortcut + Voice Invoke 两个 global gesture 入口说明；配套 [Doc/ui-mockup.html](../../Doc/ui-mockup.html) v0.1 |
+| v0.5 | `user_decision.decision` 取值从 `confirm/reject/dismiss` 改为 `send/feedback/dismiss`；feedback 类型自带 `feedback_text` (新一轮 STT)；新增 §1.5 Feedback Loop；§1.4 加入 Quick Shortcut + Voice Invoke 两个 global gesture 入口说明；配套 [Doc/ui-mockup.html](../assets/ui-mockup.html) v0.1 |
 | v0.6 | **R-1 / R-2 / R-3 落地**: §0 加 always-on mic paradigm + multi-step task chain + C-17 (audio never raw) 原则；§1.5 重写 — feedback 不再是 opt-in mode，是 default voice channel；加 4 类 free-form feedback 分类 (a/b/c/d)；新增 §2.5 Internal Dispatch Plan schema (含 task_continues + next_step_hint)；§3 重写为"RPC + Event Push" — Cortex 持久 conn + demux reader; §3.3 reverse-wake 加 session_id + 3-option menu + wake_response_map 实现引用；§7 deferred list 加 audio raw / multi-step persistence / mail push 三项明确不做的事 |
 
 ---

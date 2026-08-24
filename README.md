@@ -1,103 +1,152 @@
 # Constellation · 星座
 
-> *A constellation of senses, one mind.* / 「万象皆星，一念至此」
-> by Zack 紫意 · companion to [Halo Ring](~/Code/Projects/Halo-Ring/) (the smart-ring controller; code-named R08, dev area at `~/Code/Projects/R08-dev/`)
+> *A constellation of senses, one mind.* — 「万象皆星，一念至此」
 
-A personal AI framework that lives on your Mac mini, takes intent from a constellation of
-wearable sensors (AR glasses primary, Halo Ring + future devices), routes work through your
-local Mac toolset (Claude Code + AppleScript + 10 more adapters), and is supervised at every
-step. Your "self" lives in a markdown library (the Digital Twin) you can `vim`.
+**English** · [简体中文](README.zh-CN.md)
 
-Complex intents are handled by an agent path (Claude Code in tmux) with multi-phase
-checkpoints; the user yields between phases. The Glass mic is energy-budgeted: it only
-records on a physical button click (15s hard cap) — no wake word, no background listening.
+Constellation is a personal AI framework for **all-day wearable assistance**. AR glasses
+capture intent — voice, a camera frame, a button press — and hand it to an agent running
+on a Mac at home. That agent decides what you meant, dispatches the work to the tools you
+already use (Claude Code, Mail, Calendar, Reminders, Notes, the filesystem), and reports
+back to a heads-up display on the glasses. Everything it learns about you lives in a
+directory of Markdown files you can open in `vim`.
 
-## Where to start
+This repository is the **design hub**: the constitution, the architecture, and the specs.
+The runtime lives in two sibling repositories.
 
-If you're a human: open [DESIGN.md](docs/constitution/DESIGN.md) (v0.8) for the framework + 7 promises, then
-[Doc/ui-mockup.html](Doc/ui-mockup.html) in a browser for the visual feel.
+> **What this is, honestly.** Constellation is a research prototype built for one person's
+> daily use, not a product. It assumes a single user, a Mac at a fixed address, and a
+> specific pair of AR glasses. Prompts and Twin paths are written for its author by name.
+> It is published because the design decisions and the failure modes are worth reading —
+> not because it will run out of the box for you. See [Known limitations](#known-limitations).
 
-If you're an AI agent picking this up after a context handoff: **open [HANDOFF.md](HANDOFF.md) first**, then follow the cold-start reading order there.
+## The idea in one diagram
 
-Repo layout (post-2026-05-26 reorg): top-level entry points (`README.md`, `HANDOFF.md`, `TODO.md`) live at root; everything else is grouped under [docs/](docs/) by subsystem (`constitution/`, `server/`, `glass/`, `cross-device/`, `roadmap/`). Visual assets in [Doc/](Doc/); SDK reference material in [reference/](reference/).
+```
+   Rokid Glasses                    Mac (always on)                  Your tools
+ ┌────────────────┐            ┌──────────────────────┐         ┌──────────────────┐
+ │ mic (push-to-  │  audio +   │  Cortex              │  RPC    │ Claude Code CLI  │
+ │ talk, 15s cap) │  image     │  ├ Whisper STT       │────────▶│ Mail / Calendar  │
+ │ camera         │───WSS─────▶│  ├ classifier        │         │ Reminders/Notes  │
+ │ 480×640 HUD    │            │  ├ router / planner  │         │ iMessage/Safari  │
+ │ touch + keys   │◀──cards────│  └ Claude Agent SDK  │◀────────│ filesystem       │
+ └────────────────┘            └──────────┬───────────┘         └──────────────────┘
+                                          │
+                                  ┌───────▼────────┐
+                                  │  Digital Twin  │  plain Markdown:
+                                  │ ~/constellation│  identity · people · projects
+                                  │     /twin/     │  memos · receipts · skills
+                                  └────────────────┘
+```
 
-## Document index
+## The seven promises
 
-### Constitution & framework
-- [SOURCE-OF-TRUTH.md](docs/constitution/SOURCE-OF-TRUTH.md) — Zack's locked intent. The constitution (incl. R-1/R-2/R-3 revisions).
-- [DESIGN.md](docs/constitution/DESIGN.md) v0.8 — master framework spec (7 promises + architecture + decisions Q-1~Q-9)
-- [USE-CASE-AUDIT.md](docs/roadmap/USE-CASE-AUDIT.md) — pre-Phase-1 audit (3 use cases + 9 cool examples)
-- [TOOL-IDEAS.md](docs/roadmap/TOOL-IDEAS.md) v0.2 — Zack-triaged roadmap of further adapter ideas
+The framework is defined by what it guarantees, not by any single use case. In short:
 
-### Server-side design (Cortex + Tool Agent + Twin)
-- [AGENT-ARCHITECTURE-V2.md](docs/server/AGENT-ARCHITECTURE-V2.md) — current authoritative agent runtime (CC-in-tmux + multi-phase checkpoints). Read before any other server doc.
-- [COMPONENT-DESIGN.md](docs/server/COMPONENT-DESIGN.md) — Cortex / Tool Agent / MCP internals + 12 live adapters. (§1 Router-as-planner is historical; see V2.)
-- [DATA-MODEL.md](docs/server/DATA-MODEL.md) — Twin (markdown) data model + step receipts + context_pack.
-- [INTERFACE-CONTRACTS.md](docs/server/INTERFACE-CONTRACTS.md) — wire schemas (Glass↔Cortex, Cortex↔Tool, Twin, MCP).
-- [CORTEX-ROUTER-PROMPT.md](docs/server/CORTEX-ROUTER-PROMPT.md) — Router system prompt (single-round dispatch; multi-step lives in V2 agent path).
-- [PROMPT-DESIGN-V2.md](docs/server/PROMPT-DESIGN-V2.md) — two-pass Twin loading (TOC → selective inline).
-- [TOOL-ADAPTERS.md](docs/server/TOOL-ADAPTERS.md) — catalog of 13 live adapters (claude_code dual-track / 4 AppleScript / fs / apple_notes / system_status / apple_shortcuts / twin_query / imessage / safari_state / echo / **vision_describe**).
-- [Q4.5-VISION-PASSTHROUGH.md](docs/server/Q4.5-VISION-PASSTHROUGH.md) — design + 4-phase implementation log for the vision passthrough (`_VISION_AWARE_TOOLS` allowlist + `vision_describe` OpenAI multimodal adapter). ✅ landed 2026-05-26.
+1. **One intent surface** — whatever device is on your body takes the intent; the brain is the same.
+2. **The Twin is yours** — a Markdown library you can read, edit, and delete by hand.
+3. **Supervised by default** — nothing with a side effect sends, posts, or deletes without your approval.
+4. **Energy honesty** — the mic opens on a physical press with a hard cap. No wake word, no ambient listening.
+5. **In-the-stack, not replacement** — Constellation drives the tools you already use.
+6. **Bidirectional wake** — you can wake it, and a long-running tool can wake you.
+7. **Framework over cases** — new capabilities arrive as adapters, not as forks.
 
-### Glass client (Phase 3b — first Card on real eyewear panel 🔥)
-- [GLASS-CLIENT-DESIGN.md](docs/glass/GLASS-CLIENT-DESIGN.md) v2.1 — bare-metal Android Go HUD app design.
-- [GLASS-SDK-REFERENCE.md](docs/glass/GLASS-SDK-REFERENCE.md) — **Rokid Glasses SDK 速查**（audio / keys / display / FGS / Camera + QR / 不用的 SDK + 真机验证清单）；写代码时先翻这个。
-- [IN-APP-UI-DESIGN.md](docs/glass/IN-APP-UI-DESIGN.md) ⭐ — 当前权威：应用内 UI (Main / Connect / About / Shortcuts) + Camera + QR-pair login。A/B/C/D/Q phases landed 2026-05-26; Rokid Glasses QR pair + first Card verified 2026-05-27.
-- [P1.6-COMPOSE-MIGRATION.md](docs/glass/P1.6-COMPOSE-MIGRATION.md) — Compose 迁移 + phoneDebug simulator 7 阶段实施 (historical, ✅ landed).
-- [MIGRATION-PLAN.md](docs/glass/MIGRATION-PLAN.md) — v2.0 → v2.1 migration steps + verification checklist.
-- [UI-UX.md](docs/glass/UI-UX.md) — HUD design + visual language (v2.1 annotations applied).
-- [reference/INDEX.md](reference/INDEX.md) — raw SDK / 文档源码（Rokid + whisper + Halo Ring）；GLASS-SDK-REFERENCE 是它的"工作答疑层"。
+The full statement, with the trade-offs each one costs, is in
+[docs/constitution/DESIGN.md](docs/constitution/DESIGN.md).
 
-### Cross-app integration
-- [halo-ring-plugin-protocol.md](docs/cross-device/halo-ring-plugin-protocol.md) — protocol for Constellation to register actions with Halo Ring (Halo Ring side ✓ shipped; v2.1 makes it **optional**, not required).
+## Repository map
 
-### Visual + brand
-- [Doc/ui-mockup.html](Doc/ui-mockup.html) — visual ground truth (HUD + app surfaces).
-- [Doc/brand/](Doc/brand/) — master SVG + brand README.
-
-### Implementation (lives in sibling repos)
-This repo is design + docs only. Runtime code:
-- `~/Code/Projects/Constellation-Server/cortex/` — Cortex Agent (Python asyncio).
-- `~/Code/Projects/Constellation-Server/tool-agent/` — Tool Agent (Python WebSocket + 12 adapters).
-- `~/Code/Projects/Constellation-Console/web/` — React HUD.
-- `~/Code/Projects/Constellation-Console/edge/console_edge/` — FastAPI WSS proxy (DigitalOcean).
-- `~/Code/Projects/Constellation-Glass/` — eyewear client (branch `pivot/baremetal-v2.1`).
-- Twin seed + install scripts also live under `Constellation-Server/`.
-
-## Status (2026-05-27 EOD)
-
-| Phase | Status |
+| Repository | Contents |
 |---|---|
-| Design (SoT through **Revision 9**) | ✓ green |
-| Phase 1 (Mac spine + launchd cycle) | ✓ verified end-to-end |
-| Phase 2 (12 adapters + UC1 wall-clock + confirm-policies enforced) | ✓ verified end-to-end |
-| Phase 5 UC2 reverse-wake | ✓ demoed early end-to-end |
-| Cortex Level 2 streaming partials | ✓ shipped |
-| **Phase 3b Glass client — pivot v2.1 + Compose + in-app UI + QR pair + first Card on real eyewear** | 🟢 most-of-the-way — Compose HUD (P1.6) + in-app settings (P-app A/B/C) + Shortcuts (P-app.D) + Camera + QR login (P-app.Q) + WSS/HTTP timeout fix for Rokid Glasses WiFi all shipped. **OnePlus 9 fully E2E; Rokid Glasses (`<glass-serial>`) QR-paired + first Compose CARD rendered live on the 480×640 JBD4020 panel.** Remaining: Q.4.5b HTTP retry, full vision E2E on eyewear, voice+vision in Listening state. |
-| Halo Ring plugin protocol | ✓ shipped on ring side; Glass-side actions cursor + trigger receiver fully wired |
-| **Q.4.5 Cortex vision passthrough (C-47)** | ✅ landed 2026-05-26 EOD — `vision_describe` adapter + `_VISION_AWARE_TOOLS` allowlist gate + classifier hint; E2E verified on OnePlus 9 with real-camera shot. |
-| **Q.8 Phase Q deploy + on-eyewear QR pair** | ✅ landed 2026-05-26 EOD — Edge `/api/auth/pair_qr` + Web `/about` deployed; both devices paired without password. |
-| Phases 4 / 6 / 7 / 8 / 9 (original IMPLEMENTATION-PLAN) | ⏸ pending |
+| **[Constellation](https://github.com/MRziyi/Constellation)** (this) | Design constitution, architecture, wire contracts, roadmap |
+| [Constellation-Server](https://github.com/MRziyi/Constellation-Server) | Cortex (the brain) + Tool Agent (the hands) + Twin seed — Python |
+| [Constellation-Glass](https://github.com/MRziyi/Constellation-Glasses) | The eyewear client — Kotlin / Jetpack Compose, Android |
 
-Detailed status: [HANDOFF.md](HANDOFF.md) + [TODO.md](TODO.md) + [SOURCE-OF-TRUTH.md Revision 9](docs/constitution/SOURCE-OF-TRUTH.md).
+## Start here
 
-## Project paths
-
-| What | Where |
+| If you want to… | Read |
 |---|---|
-| This repo (design + docs) | `~/Code/Projects/Constellation/` |
-| Server (Cortex + Tool Agent) | `~/Code/Projects/Constellation-Server/` |
-| Console (Web HUD + Edge proxy) | `~/Code/Projects/Constellation-Console/` |
-| Glass client (Rokid Glasses app) | `~/Code/Projects/Constellation-Glass/` |
-| Twin (after install seed) | `~/constellation/twin/` |
-| Halo Ring (sibling OSS project) | `~/Code/Projects/Halo-Ring/` |
-| Halo Ring dev area (R&D, internal) | `~/Code/Projects/R08-dev/` |
+| Understand the framework | [docs/constitution/DESIGN.md](docs/constitution/DESIGN.md) — the master spec |
+| See where every requirement came from | [docs/constitution/SOURCE-OF-TRUTH.md](docs/constitution/SOURCE-OF-TRUTH.md) — locked original intent + revision log |
+| See what it looks like | [docs/assets/ui-mockup.html](docs/assets/ui-mockup.html) — open in a browser |
+| Build against the wire protocol | [docs/server/INTERFACE-CONTRACTS.md](docs/server/INTERFACE-CONTRACTS.md) |
+| Understand the agent runtime | [docs/server/AGENT-ARCHITECTURE-V2.md](docs/server/AGENT-ARCHITECTURE-V2.md) |
+| Write glass-side code | [docs/glass/GLASS-SDK-REFERENCE.md](docs/glass/GLASS-SDK-REFERENCE.md) — what actually works on the device |
 
-> **Naming note**: "Rokid Glasses" = the eyewear we deploy to. "Halo Ring" = the companion smart ring (code-named R08).
-> Older docs occasionally call the eyewear "R08" — that's a stale alias; the proper name is **Rokid Glasses 2**.
+### Document index
 
-## License / open-source
+**Constitution** — [`docs/constitution/`](docs/constitution/)
+- [SOURCE-OF-TRUTH.md](docs/constitution/SOURCE-OF-TRUTH.md) — the original requirements, preserved verbatim, plus every revision that has amended them. Nothing in this project is allowed to silently contradict this file.
+- [DESIGN.md](docs/constitution/DESIGN.md) — the master framework spec: seven promises, architecture, and the resolved design questions.
+- [ARCHITECTURE-REFLECTION.md](docs/constitution/ARCHITECTURE-REFLECTION.md) — a retrospective on what the architecture got right and wrong.
 
-Constellation is **free & open-source** (planned). If you paid anyone for it, you were scammed.
+**Server design** — [`docs/server/`](docs/server/)
+- [AGENT-ARCHITECTURE-V2.md](docs/server/AGENT-ARCHITECTURE-V2.md) — the authoritative agent runtime: classifier, agent path, phase checkpoints. Read before the others.
+- [COMPONENT-DESIGN.md](docs/server/COMPONENT-DESIGN.md) — Cortex / Tool Agent internals.
+- [DATA-MODEL.md](docs/server/DATA-MODEL.md) — the Twin's Markdown data model, receipts, and context packing.
+- [INTERFACE-CONTRACTS.md](docs/server/INTERFACE-CONTRACTS.md) — every wire schema (Glass↔Cortex, Cortex↔Tool, Twin, MCP).
+- [TOOL-ADAPTERS.md](docs/server/TOOL-ADAPTERS.md) — the adapter catalog and each one's action surface.
+- [PROMPT-DESIGN-V2.md](docs/server/PROMPT-DESIGN-V2.md) · [CORTEX-ROUTER-PROMPT.md](docs/server/CORTEX-ROUTER-PROMPT.md) — prompt architecture and two-pass Twin loading.
+- [Q4.5-VISION-PASSTHROUGH.md](docs/server/Q4.5-VISION-PASSTHROUGH.md) — how a camera frame reaches a multimodal model without a lossy describe-to-text step.
+- [MAIL-INBOUND-RULE.md](docs/server/MAIL-INBOUND-RULE.md) — inbound email → HUD card → dictated, threaded reply.
+- [DEPLOYMENT-mac-mini-migration.md](docs/server/DEPLOYMENT-mac-mini-migration.md) — running the Mac side headless, including the macOS TCC permissions problem over SSH.
+
+**Glass client design** — [`docs/glass/`](docs/glass/)
+- [GLASS-CLIENT-DESIGN.md](docs/glass/GLASS-CLIENT-DESIGN.md) — the bare-metal Android client design (v2.1).
+- [GLASS-SDK-REFERENCE.md](docs/glass/GLASS-SDK-REFERENCE.md) — audio, keys, display, foreground services, camera, QR: what the hardware actually does.
+- [IN-APP-UI-DESIGN.md](docs/glass/IN-APP-UI-DESIGN.md) — the phone-app surfaces and QR pairing flow.
+- [UI-UX.md](docs/glass/UI-UX.md) — HUD visual language, and why a 480×640 monochrome-green panel constrains it.
+- [NETWORK-ALTERNATIVES.md](docs/glass/NETWORK-ALTERNATIVES.md) — every way we tried to get the glasses online, and which ones survived contact with reality.
+- [PAIRING-AND-AUTH-RECOVERY.md](docs/glass/PAIRING-AND-AUTH-RECOVERY.md) · [P1.6-COMPOSE-MIGRATION.md](docs/glass/P1.6-COMPOSE-MIGRATION.md) · [P1.8-MEMORY-ENERGY-PROFILE.md](docs/glass/P1.8-MEMORY-ENERGY-PROFILE.md) · [MIGRATION-PLAN.md](docs/glass/MIGRATION-PLAN.md)
+
+**Roadmap** — [`docs/roadmap/`](docs/roadmap/)
+- [IMPLEMENTATION-PLAN.md](docs/roadmap/IMPLEMENTATION-PLAN.md) · [USE-CASE-AUDIT.md](docs/roadmap/USE-CASE-AUDIT.md) · [TOOL-IDEAS.md](docs/roadmap/TOOL-IDEAS.md)
+
+**Cross-device** — [`docs/cross-device/`](docs/cross-device/)
+- [halo-ring-plugin-protocol.md](docs/cross-device/halo-ring-plugin-protocol.md) — optional gesture input from a companion smart ring.
+
+**Assets** — [`docs/assets/`](docs/assets/) (UI mockup) · [`docs/brand/`](docs/brand/) (logo)
+
+## Hardware
+
+| Piece | What we run on |
+|---|---|
+| Glasses | Rokid Glasses — JBD4020 monochrome-green micro-LED, 480×640 portrait, right eye; YodaOS-Sprite (Android 12 Go, API 32) |
+| Brain | Any always-on Mac (Apple Silicon; Whisper and face recognition use CoreML) |
+| Link | Public TLS relay, or Tailscale, or Bluetooth PAN via a phone hotspot |
+| Ring (optional) | [Halo Ring](https://github.com/MRziyi/Halo-Ring) — adds gesture input; the system is voice-complete without it |
+
+Third-party SDK documentation is **not** redistributed here. [reference/INDEX.md](reference/INDEX.md)
+lists the authoritative sources and how to fetch them.
+
+## Status
+
+| Area | State |
+|---|---|
+| Design constitution | Stable; amended through the revision log in SOURCE-OF-TRUTH.md |
+| Mac spine — Cortex + Tool Agent + Twin, launchd-managed | Working, in daily use |
+| 13 tool adapters + supervised side effects | Working |
+| Glass client — Compose HUD, in-app settings, QR pairing, camera | Working on real hardware |
+| Local STT (whisper.cpp, two-tier) + on-device face recognition | Working |
+| Claude Agent SDK in-process agent path | Working behind a flag; replacing the older tmux-driven path |
+| Multi-device fan-out beyond glasses + ring | Designed, not built |
+
+## Known limitations
+
+Stated plainly, because the design docs argue for honest trade-offs:
+
+- **Single-user by construction.** The author's name is baked into system prompts and Twin paths. Making this multi-tenant is a real refactor, not a config change.
+- **Not privacy-hardened.** v1 explicitly traded privacy work for speed. Task content reaches cloud models. The Twin stays local, and face recognition is on-device — but do not treat this as a private-by-design system.
+- **macOS-only tooling.** The adapters drive Mail, Calendar, Reminders, Notes, iMessage, and Safari through AppleScript and require macOS TCC grants.
+- **Hardware-specific.** The glass client targets one device's quirks — its channel mask, its key broadcasts, its AppOps camera behaviour.
+- **Some design documents are written in Chinese**, or mix Chinese and English. The constitution and the glass-side notes are the main ones.
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).
+
+Constellation is free and open source. If someone charged you for it, you were scammed.
+
+---
 
 *Where your senses go, your mind follows.*

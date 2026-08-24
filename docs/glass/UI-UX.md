@@ -2,14 +2,14 @@
 
 **Version**: v0.4 (v2.1 pivot annotation)
 **Status**: Phase 3b 实施中. **Glass 端的硬件 / SDK / 交互方式已迁到 [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1** — 本文档保留 web HUD 的设计原则 + 跨 surface 共享语言。Glass 物理输入 / 渲染 / 音频细节看 GLASS-CLIENT-DESIGN.md.
-**关联文档**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 · [DESIGN.md](../constitution/DESIGN.md) · [INTERFACE-CONTRACTS.md](../server/INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](../server/COMPONENT-DESIGN.md) · [DATA-MODEL.md](../server/DATA-MODEL.md) · **[Doc/ui-mockup.html](../../Doc/ui-mockup.html)** (视觉 ground truth — v0.3 内容; §1 由 GLASS-CLIENT-DESIGN.md v2.1 supersede) · **[halo-ring-plugin-protocol.md](../cross-device/halo-ring-plugin-protocol.md)** (现在是 optional companion) · [CORTEX-ROUTER-PROMPT.md](../server/CORTEX-ROUTER-PROMPT.md)
+**关联文档**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 · [DESIGN.md](../constitution/DESIGN.md) · [INTERFACE-CONTRACTS.md](../server/INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](../server/COMPONENT-DESIGN.md) · [DATA-MODEL.md](../server/DATA-MODEL.md) · **[Doc/ui-mockup.html](../assets/ui-mockup.html)** (视觉 ground truth — v0.3 内容; §1 由 GLASS-CLIENT-DESIGN.md v2.1 supersede) · **[halo-ring-plugin-protocol.md](../cross-device/halo-ring-plugin-protocol.md)** (现在是 optional companion) · [CORTEX-ROUTER-PROMPT.md](../server/CORTEX-ROUTER-PROMPT.md)
 **Last updated**: 2026-05-26 (v2.1 pivot annotation)
 
-> ⚠️ **v2.1 pivot note** (2026-05-26): 原 §5 "Cross-app integration (Halo Ring Plugin Protocol)" 部分内容已**降级为 optional companion** — Glass 端物理触控板按键直接覆盖所有交互需求（单击/长按/双击/双指）。Halo Ring 仍可作为额外的环形手势输入，但不再是 HUD 设计的依赖前提。详见 [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 §2.2 + `reference/rokid-glass/bare-metal-docs/01-key-events.md`.
+> ⚠️ **v2.1 pivot note** (2026-05-26): 原 §5 "Cross-app integration (Halo Ring Plugin Protocol)" 部分内容已**降级为 optional companion** — Glass 端物理触控板按键直接覆盖所有交互需求（单击/长按/双击/双指）。Halo Ring 仍可作为额外的环形手势输入，但不再是 HUD 设计的依赖前提。详见 [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 §2.2 + the Rokid key-event docs (see `reference/INDEX.md`).
 >
 > 原 §3.4 "always-on mic per card" 也已**撤销**（与 v2.1 能效约束冲突）：mic 现在只在用户主动按物理键开启，15s hard cap 自动关闭。
 
-Constellation Glass 端的 UI/UX 文字落地。视觉细节看 [Doc/ui-mockup.html](../../Doc/ui-mockup.html)——它是 1:1 ground truth。**本文件只承载决策、原则、跨文档引用**，避免重复 mockup 里的视觉描述。
+Constellation Glass 端的 UI/UX 文字落地。视觉细节看 [Doc/ui-mockup.html](../assets/ui-mockup.html)——它是 1:1 ground truth。**本文件只承载决策、原则、跨文档引用**，避免重复 mockup 里的视觉描述。
 
 ---
 
@@ -28,7 +28,7 @@ Constellation Glass 端**只两个 surface**：
 
 ## 2. 视觉语言 (继承 Halo Ring)
 
-100% 继承 Halo Ring 的 8 token + type scale + focus indicator + HUD pill 样式。详 [Doc/ui-mockup.html §1 lead](../../Doc/ui-mockup.html)。
+100% 继承 Halo Ring 的 8 token + type scale + focus indicator + HUD pill 样式。详 [Doc/ui-mockup.html §1 lead](../assets/ui-mockup.html)。
 
 唯一加的语言元素：**新 icon set** (✉ ⌖ ⚙ ✦ ✓)。**不加新颜色**——单副眼镜上不再造第二套色彩 brand。
 
@@ -65,7 +65,7 @@ Card 不是为每个 use case 单独设计。**同一个 Compose 组件**，靠�
 
 ### 3.2 Card cases 覆盖
 
-参 [Doc/ui-mockup.html §1](../../Doc/ui-mockup.html) frames 1.3 ~ 1.11.
+参 [Doc/ui-mockup.html §1](../assets/ui-mockup.html) frames 1.3 ~ 1.11.
 
 | Case | icon | stripe | options 示例 |
 |---|---|---|---|
@@ -104,7 +104,7 @@ User responds via ONE of:
   (c) Wait full ttl → Glass auto-dismisses → user_decision { decision: "dismiss" }
 ```
 
-**Visual treatment** (per [Doc/ui-mockup.html](../../Doc/ui-mockup.html) — Phase 3 client implements):
+**Visual treatment** (per [Doc/ui-mockup.html](../assets/ui-mockup.html) — Phase 3 client implements):
 - Card always shows a thin mic indicator (small ⌖ dot bottom-left or top-right, color-matched
   to existing focus indicator)
 - Optionally show a tiny waveform when user speaks (reuse existing "Listening…" pill style)
@@ -208,7 +208,7 @@ When CC emits actions without `phase_done`, Cortex builds the standard `preview_
 
 ## 4. App 设置页 (只 5 个 frame)
 
-参 [Doc/ui-mockup.html §2](../../Doc/ui-mockup.html) frames 2.1 ~ 2.5.
+参 [Doc/ui-mockup.html §2](../assets/ui-mockup.html) frames 2.1 ~ 2.5.
 
 | Page | 内容 | 用途 |
 |---|---|---|
@@ -293,7 +293,7 @@ Halo Ring system gestures (TRIPLE_TAP / QUAD_TAP / LP+SWIPE_DOWN / 2×LP) **永�
 
 - **Version**: v0.3
 - **Last updated**: 2026-05-24
-- **Companion**: [Doc/ui-mockup.html](../../Doc/ui-mockup.html) v0.2 · [halo-ring-plugin-protocol.md](../cross-device/halo-ring-plugin-protocol.md) v0.1 · [CORTEX-ROUTER-PROMPT.md](../server/CORTEX-ROUTER-PROMPT.md) v0.2
+- **Companion**: [Doc/ui-mockup.html](../assets/ui-mockup.html) v0.2 · [halo-ring-plugin-protocol.md](../cross-device/halo-ring-plugin-protocol.md) v0.1 · [CORTEX-ROUTER-PROMPT.md](../server/CORTEX-ROUTER-PROMPT.md) v0.2
 - **Based on**: SoT R-3 (C-22 always-mic + C-21 HUD-as-info-card + C-20 multi-step) → spec 收敛前 Phase 3 客户端实施前最后一版
 
 ### Revision Log

@@ -571,7 +571,7 @@ escalate. Fail-closed to capability.
   tool-agent/tool_agent/adapters/claude_code.py
 - `Constellation-Console`: web/edge HUD progress ticker + preview card rendering + Sessions / Claude Code archive UI
 
-What's next: see [TODO.md](../../TODO.md) for the P0/P1/P2 roadmap. **Before any architecture refactor, read [ARCHITECTURE-REFLECTION.md](../constitution/ARCHITECTURE-REFLECTION.md)** for honest critique of what's brittle / over-engineered.
+What's next: see the roadmap for the P0/P1/P2 roadmap. **Before any architecture refactor, read [ARCHITECTURE-REFLECTION.md](../constitution/ARCHITECTURE-REFLECTION.md)** for honest critique of what's brittle / over-engineered.
 
 ---
 

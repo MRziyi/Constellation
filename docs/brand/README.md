@@ -40,14 +40,14 @@ across both apps on the same glasses.
 System sans-serif (Roboto on Android). 16 sp floor for all chrome (RayNeo design-guide alignment,
 inherited from Halo Ring). HUD card body uses 15 sp because the overlay panel has its own spatial
 discipline. Full type tokens in
-[`Doc/ui-mockup.html §1`](../ui-mockup.html) (type-scale section) and will mirror
+[`docs/assets/ui-mockup.html §1`](../assets/ui-mockup.html) (type-scale section) and will mirror
 `HaloRingTheme.kt` when ported.
 
 ## Icon files
 
 | Path | What | Notes |
 |---|---|---|
-| [`v1-constellation.svg`](v1-constellation.svg) | **Master design** at 1024 × 1024 | Eight stars in an irregular asterism (real constellations are irregular, and that irregularity is what reads as "constellation" rather than "logo geometry"), connected by faint heavy lines. 9× scale-up from the small inline mark in [`Doc/ui-mockup.html`](../ui-mockup.html), with thicker lines (stroke-width 20 vs an equivalent ~10 in the mockup) so the constellation reads at any size. Brightest star is the near-centre one (the mind); the other seven are senses reaching out in unequal directions. |
+| [`v1-constellation.svg`](v1-constellation.svg) | **Master design** at 1024 × 1024 | Eight stars in an irregular asterism (real constellations are irregular, and that irregularity is what reads as "constellation" rather than "logo geometry"), connected by faint heavy lines. 9× scale-up from the small inline mark in [`docs/assets/ui-mockup.html`](../assets/ui-mockup.html), with thicker lines (stroke-width 20 vs an equivalent ~10 in the mockup) so the constellation reads at any size. Brightest star is the near-centre one (the mind); the other seven are senses reaching out in unequal directions. |
 | (future) `app/src/main/res/drawable/ic_launcher_foreground.xml` | Android adaptive icon foreground | VectorDrawable port of v1 at 75 % scale with boosted halo alpha — same convention as Halo Ring |
 | (future) `app/src/main/res/drawable/ic_notification.xml` | Monochrome status-bar icon | Single white star-cluster on transparent; Android tints automatically |
 | (future) `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` | Adaptive-icon descriptor | `background = c_black`, `foreground = v1 port`, `monochrome` for Android 13+ themed icons |
@@ -106,7 +106,7 @@ radial gradients cleanly enough to round-trip.
 - Constellation app launcher icon (Android adaptive)
 - Status-bar notification icon (monochrome variant)
 - About screen (full 56 × 56 rendered) — see
-  [`Doc/ui-mockup.html §2.5`](../ui-mockup.html)
+  [`docs/assets/ui-mockup.html §2.5`](../assets/ui-mockup.html)
 - This mockup's brand header — currently embedded inline; should swap to a reference of
   `v1-constellation.svg` at implementation time
 

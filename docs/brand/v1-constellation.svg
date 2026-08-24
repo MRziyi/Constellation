@@ -3,7 +3,7 @@
   V1 "Star Map" — Constellation's master brand mark.
 
   Design philosophy (from Zack's direction):
-   • Match the inline constellation in Doc/ui-mockup.html — an irregular 8-star pattern
+   • Match the inline constellation in docs/assets/ui-mockup.html — an irregular 8-star pattern
      connected by faint lines, NOT a symmetric arc/blade composition. The asymmetry is
      intentional: real constellations are irregular, and that irregularity is what reads
      as "constellation" rather than "logo geometry".
@@ -64,7 +64,7 @@
        so the constellation outline reads clearly at any size. -->
   <g stroke="#5EE08C" stroke-opacity="0.42" stroke-width="20"
      fill="none" stroke-linecap="round" stroke-linejoin="round">
-    <!-- Topology preserved exactly from Doc/ui-mockup.html inline mark -->
+    <!-- Topology preserved exactly from docs/assets/ui-mockup.html inline mark -->
     <path d="M 314 386 L 440 314 L 584 404 L 692 350"/>
     <path d="M 440 314 L 494 494"/>
     <path d="M 584 404 L 494 494 L 422 620 L 602 674"/>

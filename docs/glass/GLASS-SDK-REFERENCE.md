@@ -203,7 +203,7 @@ CameraService       connect "com.rokid.os.sprite.assistserver" camera ID 0
 - ✅ 侧面按键 SPRITE_BUTTON_* 广播被我们收到 — **2026-05-27 实机确认**
 - ✅ `setChannelMask(0x6000FC)` 真机接受 — **2026-05-27 实机确认** (`GlassAudioCapture · started · 0x6000FC 8-ch → ch0`)
 
-→ `reference/rokid-glass/bare-metal-docs/01-key-events.md` (含完整 Kotlin sample)
+→ the Rokid key-event docs (see `reference/INDEX.md`) (含完整 Kotlin sample)
 
 ---
 
@@ -530,7 +530,7 @@ directly from a Service or non-Activity context.
 | 主题 | 文件 |
 |---|---|
 | Glass 裸机入门 | `reference/rokid-glass/bare-metal-docs/00-overview.md` |
-| 按键事件完整清单 + Kotlin sample | `reference/rokid-glass/bare-metal-docs/01-key-events.md` |
+| 按键事件完整清单 + Kotlin sample | the Rokid key-event docs (see `reference/INDEX.md`) |
 | 音频 8 通道 + ChannelMask sample | `reference/rokid-glass/bare-metal-docs/02-audio-recording.md` |
 | Rokid SDK 总览页 | `reference/rokid-glass/bare-metal-docs/03-developerdoc-sdk-page.md` |
 | **为什么不用 CXR-L** | `reference/rokid-glass/bare-metal-docs/04-cxrl-vs-baremetal-decisive.md` |

@@ -88,7 +88,7 @@
 
 ### 2.2 物理输入（按键广播 + KeyEvent）
 
-来自 `reference/rokid-glass/bare-metal-docs/01-key-events.md`：
+来自 the Rokid key-event docs (see `reference/INDEX.md`)：
 
 **系统广播路径**（Service 也能注册，**完美匹配我们的 FGS 设计**）：
 
@@ -180,7 +180,7 @@ val rec = AudioRecord.Builder()
 - All HUD rendering goes through shared `app/src/main/.../hud/composables/AppStateHud.kt` (`CardFrame` wrapping per-state composables).
 - Camera flows route through `CameraGate.captureViaGate(ctx)` (transparent gate Activity) — see §C-51 banner at top.
 
-Treat the diagram below as v2.1-original; the [HANDOFF.md §3.2 module map](../../HANDOFF.md) is the up-to-date layout.
+Treat the diagram below as v2.1-original; the module layout in the [Constellation-Glass repository](https://github.com/MRziyi/Constellation-Glasses) is the up-to-date one.
 
 ```
 ┌──────────── Rokid Glasses (YodaOS-Sprite / Android Go) ────────────────┐

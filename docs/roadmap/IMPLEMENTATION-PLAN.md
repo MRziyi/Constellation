@@ -2,7 +2,7 @@
 
 **Version**: v0.6
 **Status**: Phase 1 ✓ + Phase 2 ✓ + R-3 ✓ + Phase 3a Web Console ✓ + **Phase 5 v2 ✅ landed** + **Twin v2 ✅ landed** + **Auto-distiller wired** + **P0-P2 sweep ✅ landed 2026-05-26** (long-lived CC reuse, R-3 ripout, Insight Engine skeleton, per-session cost rollup, session archive filter). Active next: P1.3 Glass for the real glasses + P2.x leftovers + P3 architecture refactors (deferred multi-week). **Read [ARCHITECTURE-REFLECTION.md](../constitution/ARCHITECTURE-REFLECTION.md) before any refactor.**
-**关联文档**: **[ARCHITECTURE-REFLECTION.md](../constitution/ARCHITECTURE-REFLECTION.md)** · [DESIGN.md](../constitution/DESIGN.md) · [HANDOFF.md](../../HANDOFF.md) · [TODO.md](../../TODO.md) · [AGENT-ARCHITECTURE-V2.md](../server/AGENT-ARCHITECTURE-V2.md) · [SOURCE-OF-TRUTH.md](../constitution/SOURCE-OF-TRUTH.md) · [INTERFACE-CONTRACTS.md](../server/INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](../server/COMPONENT-DESIGN.md) · [DATA-MODEL.md](../server/DATA-MODEL.md) · [UI-UX.md](../glass/UI-UX.md) · [CORTEX-ROUTER-PROMPT.md](../server/CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](../server/TOOL-ADAPTERS.md) · [TOOL-IDEAS.md](TOOL-IDEAS.md) · [halo-ring-plugin-protocol.md](../cross-device/halo-ring-plugin-protocol.md) · [Doc/ui-mockup.html](../../Doc/ui-mockup.html)
+**关联文档**: **[ARCHITECTURE-REFLECTION.md](../constitution/ARCHITECTURE-REFLECTION.md)** · [DESIGN.md](../constitution/DESIGN.md) · [AGENT-ARCHITECTURE-V2.md](../server/AGENT-ARCHITECTURE-V2.md) · [SOURCE-OF-TRUTH.md](../constitution/SOURCE-OF-TRUTH.md) · [INTERFACE-CONTRACTS.md](../server/INTERFACE-CONTRACTS.md) · [COMPONENT-DESIGN.md](../server/COMPONENT-DESIGN.md) · [DATA-MODEL.md](../server/DATA-MODEL.md) · [UI-UX.md](../glass/UI-UX.md) · [CORTEX-ROUTER-PROMPT.md](../server/CORTEX-ROUTER-PROMPT.md) · [TOOL-ADAPTERS.md](../server/TOOL-ADAPTERS.md) · [TOOL-IDEAS.md](TOOL-IDEAS.md) · [halo-ring-plugin-protocol.md](../cross-device/halo-ring-plugin-protocol.md) · [Doc/ui-mockup.html](../assets/ui-mockup.html)
 **Last updated**: 2026-05-26 (post P0-P2 sweep)
 
 ---
@@ -30,7 +30,7 @@ Each phase has: scope, deliverables, dependencies, success criteria, deferred it
 | **5 (v2 pivot)** — CC-as-agent + streaming + multi-phase checkpoints | **✅ landed 2026-05-25** | per [AGENT-ARCHITECTURE-V2.md](../server/AGENT-ARCHITECTURE-V2.md). Streaming agent (TUI tmux + jsonl tail, $0 marginal cost), glanceable progress + thinking heartbeat, v2.6 brief (YOU MUST + self-check + phase pattern), actions[] preview + executor SEND, **multi-phase checkpoint pattern** (CC emits {phase_done, next} → Cortex blocking ⏸ card → user Continue/Adjust/Cancel → `agent_continue` resumes CC in same tmux). Verified e2e: `actions_e2e.py` PASS, `multi_phase_e2e.py` PASS (1 checkpoint + 1 final, 28s, 11 progress events). |
 | **5c** — Auto-routing classifier ahead of planner | **✅ landed 2026-05-25** | `cortex.classifier` emits `{complex: bool, why: str}` in 1 LLM call (gpt-5.2 today, swap to haiku once Anthropic key added). On `complex=true` → shared `CortexServer._dispatch_complex_agent` (brief + Twin selector + tmux dispatch). On `complex=false` → existing v0.5 selector+planner+executor. Fails-closed to complex on any error. Verified: `"battery?"` → v0.5 path; `"look at my last Kao email and propose a reply"` → agent path + tmux live. |
 | **5g** — Prune `AVAILABLE_TOOLS` catalog | **✅ landed 2026-05-25** | 11 tools / 50+ actions → **10 tools / 11 actions** all bounded single-call. |
-| **5 P0-P2** — Long-lived CC + cost rollup + R-3 ripout + Insight skeleton | **✅ landed 2026-05-26** | P0.1 tmux reuse across turns in same HUD session via `agent_continue` (47.7% wallclock savings on follow-up). P0.3 per-session LLM cost/latency telemetry via ContextVar. P1.1 deleted multi-step machinery (`_advance_task`, `task_history`, etc.) — single-shot `_replan_with_feedback` replaces it. P1.4 Insight Engine skeleton with starter `upcoming_reminders_provider`. P2.1+P2.6 session archive filter + HUD search. See [TODO.md](../../TODO.md) for the per-item ledger. |
+| **5 P0-P2** — Long-lived CC + cost rollup + R-3 ripout + Insight skeleton | **✅ landed 2026-05-26** | P0.1 tmux reuse across turns in same HUD session via `agent_continue` (47.7% wallclock savings on follow-up). P0.3 per-session LLM cost/latency telemetry via ContextVar. P1.1 deleted multi-step machinery (`_advance_task`, `task_history`, etc.) — single-shot `_replan_with_feedback` replaces it. P1.4 Insight Engine skeleton with starter `upcoming_reminders_provider`. P2.1+P2.6 session archive filter + HUD search. See the roadmap for the per-item ledger. |
 | 3b — Android-native client | ⏸ | deferred; inherits Phase 5 protocol shape |
 | 4 — Rokid Glass deploy | ⏸ | post-3b |
 | 6 — UC3 face | ⏸ | parallelisable |
@@ -43,7 +43,7 @@ reverse-wake demoed early" — it has expanded into the full v2 architecture
 pivot. The reverse-wake demo from Phase 2 closing day is *part* of Phase 5
 infra but only a slice; the meat is the streaming agent path. See
 [AGENT-ARCHITECTURE-V2.md](../server/AGENT-ARCHITECTURE-V2.md) for what's actually
-in Phase 5, and [TODO.md](../../TODO.md) for what's actually open.
+in Phase 5, and the roadmap for what's actually open.
 
 ---
 
@@ -243,7 +243,7 @@ domain):
     - `HaloTriggerReceiver` BroadcastReceiver
   - Hybrid transport ([INTERFACE-CONTRACTS §1.6](../server/INTERFACE-CONTRACTS.md)): WSS over Tailscale during active; push notification listener during idle (FCM stub OK on phone — Rokid push for Phase 4)
   - Mic + photo capture pipeline (Android `CameraX` + on-device STT — start with Android `SpeechRecognizer`; Whisper.cpp port later if needed)
-  - App-internal screens per [Doc/ui-mockup.html §2](../../Doc/ui-mockup.html): Main / Shortcuts list / Shortcut editor / Connect to Cortex / About
+  - App-internal screens per [Doc/ui-mockup.html §2](../assets/ui-mockup.html): Main / Shortcuts list / Shortcut editor / Connect to Cortex / About
   - **Profile push/pop** to Halo Ring on HUD open/close (per [halo-ring-plugin-protocol §6](../cross-device/halo-ring-plugin-protocol.md))
 
 **Success criteria**:
@@ -283,7 +283,7 @@ domain):
 - Wear test: 4 hours on a typical day; voice-invoke / quick-shortcut / feedback / preview all work
 
 **Success criteria**:
-- Visual identity matches [Doc/ui-mockup.html](../../Doc/ui-mockup.html) on actual waveguide
+- Visual identity matches [Doc/ui-mockup.html](../assets/ui-mockup.html) on actual waveguide
 - HUD card visible + readable in typical indoor lighting
 - Battery: ≥ 4 h active use with default config
 
@@ -385,7 +385,7 @@ inject into CC via tmux send-keys.
 - Quick Shortcut #1 ("Quick capture person") flow:
   - Voice Invoke or LP+SWIPE → photo
   - Cortex Router dispatches `local_face_recognition.match` first
-  - If match → render info card (case C from [ui-mockup §1.10](../../Doc/ui-mockup.html))
+  - If match → render info card (case C from [ui-mockup §1.10](../assets/ui-mockup.html))
   - If no match → render propose-add card (case D)
   - ADD + DICTATE opens mic again → second event → Cortex composes final dispatch
 - Encounters auto-promotion ([DATA-MODEL §6.2](../server/DATA-MODEL.md)): ≥ 3 appearances OR commitment link OR explicit user promotion

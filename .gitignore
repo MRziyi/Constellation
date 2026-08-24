@@ -1,24 +1,24 @@
 # macOS
 .DS_Store
+**/.DS_Store
 
-# IDE
+# IDE / editor
 .vscode/
 .idea/
 *.swp
+
+# Agent tooling (local, per-machine)
+.claude/
 
 # Local notes / scratch
 *.draft.md
 scratch/
 
-# reference/ — big SDK clones live here (~1 GB). Ignore raw clones,
-# but keep our curated INDEX.md + bare-metal-docs + cxrl-docs
-# (they're authored notes / chrome-mcp captures, not raw clones).
+# reference/ — third-party SDK clones and vendor documentation live here
+# locally (~1 GB). Vendor docs are NOT redistributed in this repo; see
+# reference/INDEX.md for the official sources and how to fetch them.
 reference/**
 !reference/INDEX.md
-!reference/rokid-glass/
-!reference/rokid-glass/bare-metal-docs/
-!reference/rokid-glass/bare-metal-docs/**
-!reference/rokid-glass/cxrl-docs/
-!reference/rokid-glass/cxrl-docs/**
-# P1.8 / Phase α — local memory/CPU profile snapshots (binary + large)
+
+# Local profiling snapshots (binary + large)
 profile-out/

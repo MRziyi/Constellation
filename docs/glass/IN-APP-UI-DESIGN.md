@@ -1,7 +1,7 @@
 # Constellation-Glass — In-App UI Design (§2 of ui-mockup)
 
 **Status**: design v2 — incorporates user direction "应用内设置跑在眼镜上，参考 Halo Ring 范式".
-**Companion**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 · [GLASS-SDK-REFERENCE.md](GLASS-SDK-REFERENCE.md) · [Doc/ui-mockup.html §2](../../Doc/ui-mockup.html) · `~/Code/Projects/Halo-Ring/app-project/app/src/main/kotlin/com/halo/ring/ui/` (reference)
+**Companion**: [GLASS-CLIENT-DESIGN.md](GLASS-CLIENT-DESIGN.md) v2.1 · [GLASS-SDK-REFERENCE.md](GLASS-SDK-REFERENCE.md) · [Doc/ui-mockup.html §2](../assets/ui-mockup.html) · `~/Code/Projects/Halo-Ring/app-project/app/src/main/kotlin/com/halo/ring/ui/` (reference)
 
 ---
 
@@ -149,7 +149,7 @@ fun AppChrome(
 ├──────────────────────────────┤
 │ ╔══════════════════════════╗ │
 │ ║ ● Connected to Cortex    ║ │  ← status block (focusable;
-│ ║ wss://edge.example…  ║ │     CLICK → Connect screen)
+│ ║ wss://edge.example.…  ║ │     CLICK → Connect screen)
 │ ║ 12 invokes · 3 min ago   ║ │
 │ ╚══════════════════════════╝ │
 │                              │

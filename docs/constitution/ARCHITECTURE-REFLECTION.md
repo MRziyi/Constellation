@@ -5,7 +5,7 @@ written AFTER multiple rounds of building + dogfooding. Not cheerleading. The
 goal is to call out what's brittle, what's unnecessary, what should be torn
 down, so the next phase isn't blinded by the existing implementation.
 
-Use this alongside [HANDOFF.md](../../HANDOFF.md) and
+Use this alongside the roadmap and
 [IMPLEMENTATION-PLAN.md](../roadmap/IMPLEMENTATION-PLAN.md).
 
 ---
