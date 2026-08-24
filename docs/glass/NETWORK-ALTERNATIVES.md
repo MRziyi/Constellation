@@ -116,8 +116,8 @@ Rokid 官方"phone-bridge"方案，但跟我们 v2.1 的 "bare-metal + Compose H
 **唯一可能的妥协**：CXR-L CUSTOMAPP 模式 = "把我们眼镜端 app 通过 CXR-L 部署 + 加一条 customCmd 通道作 WSS 替代"。这条还能保留 Compose HUD，但仍然依赖 Rokid AI APP 跑着。
 
 详见：
-- [reference/rokid-glass/cxrl-docs/00-introduction.md](../../reference/rokid-glass/cxrl-docs/00-introduction.md)
-- [reference/rokid-glass/cxrl-docs/MANIFEST.md](../../reference/rokid-glass/cxrl-docs/MANIFEST.md) — 23 个 sub-page 按需取
+- `reference/rokid-glass/cxrl-docs/00-introduction.md`
+- `reference/rokid-glass/cxrl-docs/MANIFEST.md` — 23 个 sub-page 按需取
 
 ---
 
